@@ -1,10 +1,13 @@
 import React, { useEffect } from 'react';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { BookOpen, Compass, Clock, BookHeart, Flame, CircleDot, Moon, Sparkles, Gift, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +28,7 @@ import Animated, {
   withSequence,
 } from 'react-native-reanimated';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 
 const { width, height } = Dimensions.get('window');
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -215,10 +219,22 @@ const IslamicPattern = () => (
 );
 
 // Circular Progress Component
-const CircularProgress = ({ progress, size = 60, strokeWidth = 4, color = '#10b981' }) => {
+type CircularProgressProps = {
+  progress: number;
+  size?: number;
+  strokeWidth?: number;
+  color?: string;
+};
+
+const CircularProgress: React.FC<CircularProgressProps> = ({
+  progress,
+  size = 60,
+  strokeWidth = 4,
+  color = '#10b981',
+}) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  
+
   const animatedProgress = useSharedValue(0);
 
   useEffect(() => {
@@ -229,10 +245,9 @@ const CircularProgress = ({ progress, size = 60, strokeWidth = 4, color = '#10b9
   }, [progress]);
 
   const animatedProps = useAnimatedProps(() => {
-    const strokeDashoffset = circumference - (animatedProgress.value * circumference);
-    return {
-      strokeDashoffset,
-    };
+    const strokeDashoffset =
+      circumference - animatedProgress.value * circumference;
+    return { strokeDashoffset };
   });
 
   return (
@@ -265,6 +280,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const userName = "Huzaifa Haris";
   
+  const tabBarHeight = useBottomTabBarHeight();
+  
   const scrollY = useSharedValue(0);
   const holoAnim = useSharedValue(0);
 
@@ -283,45 +300,54 @@ export default function HomeScreen() {
   });
 
   const greetingStyle = useAnimatedStyle(() => {
+    'worklet';
     const translateY = interpolate(scrollY.value, [0, 60], [0, -30], Extrapolate.CLAMP);
     const opacity = interpolate(scrollY.value, [0, 60], [1, 0], Extrapolate.CLAMP);
     return { transform: [{ translateY }], opacity };
   });
 
   const verseStyle = useAnimatedStyle(() => {
+    'worklet';
     const translateY = interpolate(scrollY.value, [0, 80], [0, -40], Extrapolate.CLAMP);
     const opacity = interpolate(scrollY.value, [0, 80], [1, 0], Extrapolate.CLAMP);
     return { transform: [{ translateY }], opacity };
   });
 
   const statsStyle = useAnimatedStyle(() => {
+    'worklet';
     const translateY = interpolate(scrollY.value, [0, 100], [0, -50], Extrapolate.CLAMP);
     const opacity = interpolate(scrollY.value, [0, 100], [1, 0], Extrapolate.CLAMP);
     return { transform: [{ translateY }], opacity };
   });
 
   const nameStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(scrollY.value, [0, 100], [0, -70], Extrapolate.CLAMP);
-    const scale = interpolate(scrollY.value, [0, 100], [1, 0.7], Extrapolate.CLAMP);
-    return { transform: [{ translateY }, { scale }] };
+    'worklet';
+    const translateY = interpolate(scrollY.value, [0, 150], [0, -25], Extrapolate.CLAMP);
+    const scale = interpolate(scrollY.value, [0, 150], [1, 0.7], Extrapolate.CLAMP);
+    const opacity = interpolate(scrollY.value, [0, 150], [1, 0.85], Extrapolate.CLAMP);
+    return { transform: [{ translateY }, { scale }], opacity };
   });
 
   const headerStyle = useAnimatedStyle(() => {
-    const height = interpolate(scrollY.value, [0, 100], [340, 100], Extrapolate.CLAMP);
+    'worklet';
+    const height = interpolate(scrollY.value, [0, 150], [380, 140], Extrapolate.CLAMP);
     return { height };
   });
 
   const gradientOpacity = useAnimatedStyle(() => {
+    'worklet';
     const opacity = interpolate(scrollY.value, [0, 80], [1, 0], Extrapolate.CLAMP);
     return { opacity };
   });
 
   const blurOpacity = useAnimatedStyle(() => {
+    'worklet';
     const opacity = interpolate(scrollY.value, [0, 80], [0, 1], Extrapolate.CLAMP);
     return { opacity };
   });
 
   const holoStyle = useAnimatedStyle(() => {
+    'worklet';
     const translateX = interpolate(holoAnim.value, [0, 1], [-200, 200], Extrapolate.CLAMP);
     return { transform: [{ translateX }, { rotate: '45deg' }] };
   });
@@ -329,7 +355,10 @@ export default function HomeScreen() {
   const prayerProgress = 2 / 5;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+
+      <StatusBar barStyle="light-content" />
+      
       {/* FUTURISTIC HEADER WITH PATTERNS */}
       <Animated.View style={[styles.headerContainer, headerStyle]}>
         {/* Gradient Background */}
@@ -411,9 +440,12 @@ export default function HomeScreen() {
       {/* SCROLLABLE CONTENT */}
       <Animated.ScrollView
         onScroll={scrollHandler}
-        scrollEventThrottle={16}
+        scrollEventThrottle={1}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: tabBarHeight + 20 }
+        ]}>
         
         <View style={styles.contentSection}>
           {/* HOLOGRAPHIC GIFT AYAH */}
@@ -591,7 +623,7 @@ export default function HomeScreen() {
           </View>
         </View>
       </Animated.ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -668,9 +700,9 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255, 255, 255, 0.18)',
   },
   headerContent: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'android' ? 40 : 60,
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 30,
     flex: 1,
     zIndex: 3,
   },
@@ -716,7 +748,7 @@ const styles = StyleSheet.create({
   },
   statBubbleNumber: { fontSize: 22, fontWeight: 'bold', color: '#ffffff', zIndex: 1 },
   statBubbleLabel: { fontSize: 13, color: '#ffffff', fontWeight: '600', zIndex: 1 },
-  scrollContent: { paddingTop: 340 },
+  scrollContent: { paddingTop: 380 },
   contentSection: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
   
   // HOLOGRAPHIC GIFT AYAH
