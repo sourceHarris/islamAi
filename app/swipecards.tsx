@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,19 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { X, RefreshCw, Sparkles, Heart, Share2, BookOpen } from 'lucide-react-native';
+import { X, RefreshCw, Sparkles, Heart, Share2, BookOpen, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   runOnJS,
+  withRepeat,
+  withTiming,
+  Easing,
+  interpolate,
+  Extrapolate,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../contexts/ThemeContext';
@@ -117,6 +123,43 @@ const CARDS_DATA: Card[] = [
   },
 ];
 
+// Floating Particle Component
+const FloatingParticle = ({ delay = 0, x = 0, cardColor = '#10b981' }) => {
+  const translateY = useSharedValue(CARD_HEIGHT);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    translateY.value = withRepeat(
+      withTiming(-50, {
+        duration: 6000 + Math.random() * 3000,
+        easing: Easing.linear,
+      }),
+      -1,
+      false
+    );
+    opacity.value = withRepeat(
+      withTiming(0.5, { duration: 1500 }),
+      -1,
+      true
+    );
+  }, []);
+
+  const particleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.particle,
+        { left: x, backgroundColor: cardColor },
+        particleStyle,
+      ]}
+    />
+  );
+};
+
 export default function SwipeCardsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
@@ -126,6 +169,15 @@ export default function SwipeCardsScreen() {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const rotate = useSharedValue(0);
+  const holoAnim = useSharedValue(0);
+
+  useEffect(() => {
+    holoAnim.value = withRepeat(
+      withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, []);
 
   const handleSwipe = () => {
     setCurrentIndex((prev) => {
@@ -144,7 +196,10 @@ export default function SwipeCardsScreen() {
     })
     .onEnd((event) => {
       if (Math.abs(event.translationX) > 100) {
-        translateX.value = withSpring(event.translationX > 0 ? 500 : -500);
+        translateX.value = withSpring(event.translationX > 0 ? 500 : -500, {
+          damping: 20,
+          stiffness: 90,
+        });
         translateY.value = withSpring(event.translationY);
         
         setTimeout(() => {
@@ -170,6 +225,18 @@ export default function SwipeCardsScreen() {
     };
   });
 
+  const holoStyle = useAnimatedStyle(() => {
+    const translateX = interpolate(
+      holoAnim.value,
+      [0, 1],
+      [-CARD_WIDTH, CARD_WIDTH],
+      Extrapolate.CLAMP
+    );
+    return {
+      transform: [{ translateX }, { rotate: '45deg' }],
+    };
+  });
+
   const handleRefresh = () => {
     setCurrentIndex(0);
     translateX.value = withSpring(0);
@@ -182,26 +249,36 @@ export default function SwipeCardsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <X size={28} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Gift Ayah</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            {currentIndex + 1} of {cards.length}
-          </Text>
+      {/* Futuristic Header with Blur */}
+      <BlurView intensity={80} tint="dark" style={styles.headerBlur}>
+        <View style={[styles.header, { backgroundColor: 'transparent' }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <View style={styles.buttonGlow} />
+            <X size={28} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <View style={styles.titleContainer}>
+              <Sparkles size={20} color={colors.primary} />
+              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Gift Ayah</Text>
+            </View>
+            <View style={styles.counterBadge}>
+              <Text style={[styles.headerSubtitle, { color: colors.textPrimary }]}>
+                {currentIndex + 1} / {cards.length}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+            <View style={styles.buttonGlow} />
+            <RefreshCw size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
-          <RefreshCw size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-      </View>
+      </BlurView>
 
       {/* Cards Stack */}
       <View style={styles.cardsContainer}>
-        {/* Next Card (Behind) */}
+        {/* Next Card (Behind) with Glow */}
         <View style={[styles.cardWrapper, styles.nextCardWrapper]}>
+          <View style={[styles.cardGlowOuter, { shadowColor: nextCard.color1 }]} />
           <LinearGradient
             colors={[nextCard.color1, nextCard.color2]}
             style={styles.card}
@@ -214,20 +291,43 @@ export default function SwipeCardsScreen() {
           </LinearGradient>
         </View>
 
-        {/* Current Card (Top) */}
+        {/* Current Card (Top) - Futuristic */}
         <GestureDetector gesture={panGesture}>
           <Animated.View style={[styles.cardWrapper, animatedStyle]}>
+            <View style={[styles.cardGlowOuter, { shadowColor: currentCard.color1 }]} />
             <LinearGradient
-              colors={[currentCard.color1, currentCard.color2]}
+              colors={[currentCard.color1, currentCard.color2, currentCard.color2]}
               style={styles.card}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
+              {/* Holographic Shimmer */}
+              <Animated.View style={[styles.holoShimmer, holoStyle]}>
+                <LinearGradient
+                  colors={['transparent', 'rgba(255,255,255,0.4)', 'transparent']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.shimmerGradient}
+                />
+              </Animated.View>
+
+              {/* Neon Border */}
+              <View style={[styles.neonBorder, { borderColor: currentCard.color1 }]} />
+
+              {/* Floating Particles */}
+              <View style={styles.particlesContainer}>
+                <FloatingParticle x={50} delay={0} cardColor={currentCard.color1} />
+                <FloatingParticle x={CARD_WIDTH * 0.3} delay={500} cardColor={currentCard.color1} />
+                <FloatingParticle x={CARD_WIDTH * 0.7} delay={1000} cardColor={currentCard.color1} />
+                <FloatingParticle x={CARD_WIDTH * 0.5} delay={1500} cardColor={currentCard.color1} />
+              </View>
+
               {/* Sparkle Background */}
               <View style={styles.sparklesBackground}>
-                <Sparkles size={20} color="#ffffff" opacity={0.2} style={styles.sparkle1} />
-                <Sparkles size={16} color="#ffffff" opacity={0.15} style={styles.sparkle2} />
-                <Sparkles size={18} color="#ffffff" opacity={0.18} style={styles.sparkle3} />
+                <Sparkles size={20} color="#ffffff" opacity={0.3} style={styles.sparkle1} />
+                <Sparkles size={16} color="#ffffff" opacity={0.25} style={styles.sparkle2} />
+                <Sparkles size={18} color="#ffffff" opacity={0.28} style={styles.sparkle3} />
+                <Sparkles size={14} color="#ffffff" opacity={0.2} style={styles.sparkle4} />
               </View>
 
               <ScrollView 
@@ -235,36 +335,52 @@ export default function SwipeCardsScreen() {
                 contentContainerStyle={styles.cardContentScroll}
                 showsVerticalScrollIndicator={false}
               >
-                {/* Topic Badge */}
+                {/* Topic Badge - Enhanced */}
                 <View style={styles.topicBadge}>
+                  <View style={styles.topicGlow} />
                   <Text style={styles.topicEmoji}>{currentCard.emoji}</Text>
                   <Text style={styles.topicText}>{currentCard.topic}</Text>
                 </View>
 
-                {/* Arabic Verse */}
+                {/* Arabic Verse with Glow */}
                 <View style={styles.verseContainer}>
-                  <BookOpen size={32} color="#ffffff" style={styles.bookIcon} />
+                  <View style={styles.iconContainer}>
+                    <View style={styles.iconGlow} />
+                    <BookOpen size={32} color="#ffffff" style={styles.bookIcon} />
+                  </View>
                   <Text style={styles.arabicVerse}>{currentCard.arabicVerse}</Text>
                 </View>
 
                 {/* Translation */}
                 <View style={styles.translationContainer}>
+                  <View style={styles.quoteGlow} />
                   <Text style={styles.translationText}>"{currentCard.translation}"</Text>
                 </View>
 
-                {/* Reference */}
+                {/* Reference with Divider */}
                 <View style={styles.referenceContainer}>
-                  <View style={styles.referenceDivider} />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(255,255,255,0.5)', 'transparent']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.referenceDivider}
+                  />
                   <Text style={styles.referenceText}>{currentCard.reference}</Text>
                 </View>
 
-                {/* Action Buttons */}
+                {/* Action Buttons - Futuristic */}
                 <View style={styles.actionButtons}>
-                  <TouchableOpacity style={styles.actionButton}>
+                  <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+                    <View style={styles.actionButtonGlow} />
                     <Heart size={24} color="#ffffff" />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton}>
+                  <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+                    <View style={styles.actionButtonGlow} />
                     <Share2 size={24} color="#ffffff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
+                    <View style={styles.actionButtonGlow} />
+                    <Zap size={24} color="#ffffff" fill="#ffffff" />
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -273,16 +389,22 @@ export default function SwipeCardsScreen() {
         </GestureDetector>
       </View>
 
-      {/* Swipe Instructions */}
+      {/* Swipe Instructions - Futuristic */}
       <View style={styles.instructionsContainer}>
-        <View style={styles.instructionItem}>
-          <Text style={[styles.instructionArrow, { color: colors.textSecondary }]}>←</Text>
-          <Text style={[styles.instructionText, { color: colors.textSecondary }]}>Swipe</Text>
-          <Text style={[styles.instructionArrow, { color: colors.textSecondary }]}>→</Text>
-        </View>
-        <Text style={[styles.instructionSubtext, { color: colors.textSecondary }]}>
-          Swipe left or right for next ayah
-        </Text>
+        <BlurView intensity={60} tint="dark" style={styles.instructionsBlur}>
+          <View style={styles.instructionItem}>
+            <View style={styles.arrowContainer}>
+              <Text style={[styles.instructionArrow, { color: colors.primary }]}>←</Text>
+            </View>
+            <Text style={[styles.instructionText, { color: colors.textPrimary }]}>Swipe</Text>
+            <View style={styles.arrowContainer}>
+              <Text style={[styles.instructionArrow, { color: colors.primary }]}>→</Text>
+            </View>
+          </View>
+          <Text style={[styles.instructionSubtext, { color: colors.textSecondary }]}>
+            Swipe left or right for next ayah
+          </Text>
+        </BlurView>
       </View>
     </View>
   );
@@ -291,6 +413,15 @@ export default function SwipeCardsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerBlur: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   header: {
     flexDirection: 'row',
@@ -305,24 +436,47 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  headerSubtitle: {
-    fontSize: 14,
+    position: 'relative',
   },
   refreshButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  buttonGlow: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  counterBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   cardsContainer: {
     flex: 1,
@@ -336,7 +490,19 @@ const styles = StyleSheet.create({
   },
   nextCardWrapper: {
     transform: [{ scale: 0.95 }],
-    opacity: 0.5,
+    opacity: 0.6,
+  },
+  cardGlowOuter: {
+    position: 'absolute',
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    borderRadius: 42,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 25,
+    elevation: 15,
   },
   card: {
     width: '100%',
@@ -344,15 +510,57 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.4,
+    shadowRadius: 25,
+    elevation: 15,
+  },
+  holoShimmer: {
+    position: 'absolute',
+    top: -100,
+    left: -100,
+    width: CARD_WIDTH + 200,
+    height: CARD_HEIGHT + 200,
+    zIndex: 1,
+  },
+  shimmerGradient: {
+    flex: 1,
+  },
+  neonBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 32,
+    borderWidth: 2,
+    opacity: 0.5,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+    zIndex: 2,
+  },
+  particlesContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 1,
+  },
+  particle: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
   },
   sparklesBackground: {
     position: 'absolute',
     width: '100%',
     height: '100%',
+    zIndex: 2,
   },
   sparkle1: {
     position: 'absolute',
@@ -369,8 +577,14 @@ const styles = StyleSheet.create({
     top: 150,
     left: 50,
   },
+  sparkle4: {
+    position: 'absolute',
+    bottom: 200,
+    right: 60,
+  },
   cardScrollView: {
     flex: 1,
+    zIndex: 3,
   },
   cardContent: {
     flex: 1,
@@ -392,22 +606,51 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 32,
     gap: 8,
+    position: 'relative',
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  topicGlow: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   topicEmoji: {
     fontSize: 24,
+    zIndex: 1,
   },
   topicText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#ffffff',
+    zIndex: 1,
   },
   verseContainer: {
     alignItems: 'center',
     marginBottom: 32,
   },
-  bookIcon: {
+  iconContainer: {
+    position: 'relative',
     marginBottom: 16,
+  },
+  iconGlow: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    top: -8,
+    left: -8,
+  },
+  bookIcon: {
     opacity: 0.9,
+    zIndex: 1,
   },
   arabicVerse: {
     fontSize: 32,
@@ -415,9 +658,22 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     lineHeight: 50,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   translationContainer: {
     marginBottom: 32,
+    position: 'relative',
+  },
+  quoteGlow: {
+    position: 'absolute',
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
   },
   translationText: {
     fontSize: 20,
@@ -425,23 +681,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 32,
     fontWeight: '500',
+    zIndex: 1,
   },
   referenceContainer: {
     alignItems: 'center',
     marginBottom: 24,
   },
   referenceDivider: {
-    width: 60,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    width: 80,
+    height: 3,
     marginBottom: 16,
-    borderRadius: 1,
+    borderRadius: 1.5,
   },
   referenceText: {
     fontSize: 15,
     color: '#ffffff',
-    opacity: 0.9,
+    opacity: 0.95,
     fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -455,13 +714,36 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  actionButtonGlow: {
+    position: 'absolute',
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   cardEmoji: {
     fontSize: 80,
   },
   instructionsContainer: {
-    paddingBottom: 40,
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  instructionsBlur: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   instructionItem: {
     flexDirection: 'row',
@@ -469,8 +751,16 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 8,
   },
+  arrowContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   instructionArrow: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   instructionText: {
