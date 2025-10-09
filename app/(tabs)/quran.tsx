@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Search, BookOpen, Play, Bookmark, Volume2, Star, Sparkles, Zap, ChevronRight, Book, X, Minimize2 } from 'lucide-react-native';
+import { Search, BookOpen, Heart, Bookmark, Volume2, Star, Sparkles, Zap, ChevronRight, Book, X, Moon, Sun, ChevronLeft, Eye } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -95,11 +95,13 @@ export default function QuranScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState<'surahs' | 'hadith' | 'bookmarks' | 'recent'>('surahs');
   const [quranMode, setQuranMode] = useState(false);
+  const [quranModeView, setQuranModeView] = useState<'list' | 'reading'>('list');
   const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const shimmerAnim = useSharedValue(0);
   const pulseAnim = useSharedValue(0);
-  const quranModeAnim = useSharedValue(0);
 
   useEffect(() => {
     shimmerAnim.value = withRepeat(
@@ -113,13 +115,6 @@ export default function QuranScreen() {
       true
     );
   }, []);
-
-  useEffect(() => {
-    quranModeAnim.value = withSpring(quranMode ? 1 : 0, {
-      damping: 20,
-      stiffness: 90,
-    });
-  }, [quranMode]);
 
   const [surahs] = useState<Surah[]>([
     { number: 1, name: 'Al-Fatihah', arabicName: 'الفاتحة', englishName: 'The Opening', verses: 7, revelation: 'Meccan', progress: 100 },
@@ -228,35 +223,37 @@ export default function QuranScreen() {
     };
   });
 
-  const quranModeStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      quranModeAnim.value,
-      [0, 1],
-      [0, 1],
-      Extrapolate.CLAMP
-    );
-    return {
-      opacity,
-      transform: [{ scale: quranModeAnim.value }],
-    };
-  });
-
-  const enterQuranMode = (surah: Surah) => {
-    setSelectedSurah(surah);
+  const enterQuranMode = () => {
     setQuranMode(true);
+    setQuranModeView('list');
   };
 
   const exitQuranMode = () => {
     setQuranMode(false);
-    setTimeout(() => setSelectedSurah(null), 300);
+    setQuranModeView('list');
+    setSelectedSurah(null);
+  };
+
+  const startReading = (surah: Surah) => {
+    setSelectedSurah(surah);
+    setQuranModeView('reading');
+    setCurrentPage(1);
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < 10) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   const renderSurahItem = ({ item }: { item: Surah }) => (
-    <TouchableOpacity 
-      style={styles.surahCard} 
-      activeOpacity={0.7}
-      onPress={() => enterQuranMode(item)}
-    >
+    <TouchableOpacity style={styles.surahCard} activeOpacity={0.7}>
       <BlurView intensity={80} tint="dark" style={styles.surahBlur}>
         <LinearGradient
           colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)']}
@@ -309,7 +306,7 @@ export default function QuranScreen() {
               <View style={styles.surahActions}>
                 <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
                   <BlurView intensity={60} tint="dark" style={styles.actionBlur}>
-                    <Play size={16} color={colors.primary} fill={colors.primary} />
+                    <Heart size={16} color={colors.primary} />
                   </BlurView>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
@@ -347,6 +344,27 @@ export default function QuranScreen() {
           </View>
         </LinearGradient>
       </BlurView>
+    </TouchableOpacity>
+  );
+
+  const renderQuranModeSurahItem = ({ item }: { item: Surah }) => (
+    <TouchableOpacity 
+      style={styles.quranModeSurahCard} 
+      activeOpacity={0.7}
+      onPress={() => startReading(item)}>
+      <View style={styles.quranModeSurahContent}>
+        <View style={styles.quranModeSurahNumber}>
+          <Text style={styles.quranModeSurahNumberText}>{item.number}</Text>
+        </View>
+        <View style={styles.quranModeSurahInfo}>
+          <Text style={styles.quranModeSurahName}>{item.name}</Text>
+          <Text style={styles.quranModeSurahArabic}>{item.arabicName}</Text>
+        </View>
+        <View style={styles.quranModeSurahMeta}>
+          <Text style={styles.quranModeSurahVerses}>{item.verses} verses</Text>
+          <ChevronRight size={20} color="#8B7355" strokeWidth={2} />
+        </View>
+      </View>
     </TouchableOpacity>
   );
 
@@ -462,106 +480,99 @@ export default function QuranScreen() {
     </TouchableOpacity>
   );
 
-  // Quran Mode View
-  if (quranMode && selectedSurah) {
+  // Quran Mode - Reading View
+  if (quranMode && quranModeView === 'reading' && selectedSurah) {
     return (
-      <Animated.View style={[styles.quranModeContainer, { backgroundColor: colors.background }, quranModeStyle]}>
-        <LinearGradient
-          colors={[colors.primary + '20', colors.background, colors.background]}
-          style={styles.quranModeGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}>
-          
-          {/* Minimal Header */}
-          <View style={styles.quranModeHeader}>
-            <BlurView intensity={80} tint="dark" style={styles.quranModeHeaderBlur}>
-              <View style={styles.quranModeHeaderContent}>
-                <View style={styles.quranModeTitleSection}>
-                  <Text style={[styles.quranModeSurahName, { color: colors.textPrimary }]}>
-                    {selectedSurah.name}
-                  </Text>
-                  <Text style={[styles.quranModeArabicName, { color: colors.primary }]}>
-                    {selectedSurah.arabicName}
-                  </Text>
-                </View>
-                
-                <TouchableOpacity 
-                  style={styles.quranModeExit}
-                  onPress={exitQuranMode}
-                  activeOpacity={0.7}>
-                  <BlurView intensity={60} tint="dark" style={styles.exitBlur}>
-                    <Minimize2 size={20} color={colors.textPrimary} strokeWidth={2.5} />
-                  </BlurView>
-                </TouchableOpacity>
-              </View>
-            </BlurView>
+      <View style={styles.quranReadingContainer}>
+        <View style={styles.paperPage}>
+          {/* Header */}
+          <View style={styles.readingHeader}>
+            <TouchableOpacity onPress={() => setQuranModeView('list')} activeOpacity={0.7}>
+              <ChevronLeft size={28} color="#5C4A3A" strokeWidth={2} />
+            </TouchableOpacity>
+            <View style={styles.readingHeaderCenter}>
+              <Text style={styles.readingHeaderTitle}>{selectedSurah.arabicName}</Text>
+              <Text style={styles.readingHeaderSubtitle}>Page {currentPage}</Text>
+            </View>
+            <TouchableOpacity onPress={exitQuranMode} activeOpacity={0.7}>
+              <X size={28} color="#5C4A3A" strokeWidth={2} />
+            </TouchableOpacity>
           </View>
 
-          {/* Quran Reading Area */}
+          {/* Quran Page Content */}
           <ScrollView 
-            style={styles.quranModeScroll}
-            contentContainerStyle={styles.quranModeContent}
+            ref={scrollViewRef}
+            style={styles.pageScroll}
+            contentContainerStyle={styles.pageContent}
             showsVerticalScrollIndicator={false}>
             
-            <View style={styles.bismillahContainer}>
-              <Text style={[styles.bismillah, { color: colors.primary }]}>
-                بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+            {currentPage === 1 && (
+              <View style={styles.bismillahSection}>
+                <Text style={styles.bismillahText}>
+                  بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.versesSection}>
+              <Text style={styles.quranPageText}>
+                ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ ۝ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ ۝ مَٰلِكِ يَوْمِ ٱلدِّينِ ۝ إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ ۝ ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ ۝ صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ ۝
               </Text>
             </View>
-
-            {/* Sample Verses - Replace with actual verse data */}
-            {[1, 2, 3, 4, 5, 6, 7].map((verseNum) => (
-              <View key={verseNum} style={styles.verseContainer}>
-                <BlurView intensity={40} tint="dark" style={styles.verseBlur}>
-                  <View style={styles.verseContent}>
-                    <View style={styles.verseNumberBadge}>
-                      <LinearGradient
-                        colors={[colors.primary + '40', colors.primary + '20']}
-                        style={styles.verseNumberGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}>
-                        <Text style={[styles.verseNumber, { color: colors.primary }]}>
-                          {verseNum}
-                        </Text>
-                      </LinearGradient>
-                    </View>
-                    
-                    <Text style={[styles.verseArabic, { color: colors.textPrimary }]}>
-                      وَٱلْعَصْرِ ﴿١﴾ إِنَّ ٱلْإِنسَٰنَ لَفِى خُسْرٍ ﴿٢﴾
-                    </Text>
-                    
-                    <Text style={[styles.verseTranslation, { color: colors.textSecondary }]}>
-                      By time, Indeed, mankind is in loss, Except for those who have believed and done righteous deeds and advised each other to truth and advised each other to patience.
-                    </Text>
-                  </View>
-                </BlurView>
-              </View>
-            ))}
           </ScrollView>
 
-          {/* Minimal Controls */}
-          <View style={styles.quranModeControls}>
-            <BlurView intensity={80} tint="dark" style={styles.controlsBlur}>
-              <View style={styles.controlsRow}>
-                <TouchableOpacity style={styles.controlButton} activeOpacity={0.7}>
-                  <Volume2 size={20} color={colors.primary} strokeWidth={2.5} />
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.controlButton} activeOpacity={0.7}>
-                  <Bookmark size={20} color={colors.primary} strokeWidth={2.5} />
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.controlButton} activeOpacity={0.7}>
-                  <Sparkles size={20} color={colors.primary} strokeWidth={2.5} />
-                </TouchableOpacity>
-              </View>
-            </BlurView>
+          {/* Page Navigation */}
+          <View style={styles.pageNavigation}>
+            <TouchableOpacity 
+              style={[styles.navButton, currentPage === 1 && styles.navButtonDisabled]}
+              onPress={goToPreviousPage}
+              disabled={currentPage === 1}
+              activeOpacity={0.7}>
+              <ChevronLeft size={24} color={currentPage === 1 ? '#D4C4A8' : '#5C4A3A'} strokeWidth={2} />
+            </TouchableOpacity>
+            
+            <View style={styles.pageIndicator}>
+              <Text style={styles.pageNumber}>{currentPage} / 10</Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={[styles.navButton, currentPage === 10 && styles.navButtonDisabled]}
+              onPress={goToNextPage}
+              disabled={currentPage === 10}
+              activeOpacity={0.7}>
+              <ChevronRight size={24} color={currentPage === 10 ? '#D4C4A8' : '#5C4A3A'} strokeWidth={2} />
+            </TouchableOpacity>
           </View>
-        </LinearGradient>
-      </Animated.View>
+        </View>
+      </View>
     );
   }
 
+  // Quran Mode - Surah List
+  if (quranMode && quranModeView === 'list') {
+    return (
+      <View style={styles.quranModeListContainer}>
+        <View style={styles.quranModeListHeader}>
+          <View style={styles.quranModeListHeaderContent}>
+            <Text style={styles.quranModeListTitle}>Select Surah</Text>
+            <TouchableOpacity onPress={exitQuranMode} activeOpacity={0.7}>
+              <X size={28} color="#5C4A3A" strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        <FlatList
+          data={surahs}
+          renderItem={renderQuranModeSurahItem}
+          keyExtractor={(item) => item.number.toString()}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.quranModeListContent}
+        />
+      </View>
+    );
+  }
+
+  // Main Screen
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* iOS 16+ Header */}
@@ -610,7 +621,7 @@ export default function QuranScreen() {
         </BlurView>
       </View>
 
-      {/* iOS-style Tabs */}
+      {/* iOS-style Tabs with Quran Mode Button */}
       <View style={styles.tabContainer}>
         <BlurView intensity={80} tint="dark" style={styles.tabBlur}>
           <LinearGradient
@@ -618,82 +629,92 @@ export default function QuranScreen() {
             style={styles.tabGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabsRow}>
+            <View style={styles.tabsWrapper}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabsRow}>
+                <TouchableOpacity
+                  style={[styles.tab, selectedTab === 'surahs' && styles.activeTab]}
+                  onPress={() => setSelectedTab('surahs')}
+                  activeOpacity={0.7}>
+                  {selectedTab === 'surahs' && (
+                    <LinearGradient
+                      colors={[colors.primary + '40', colors.primary + '20']}
+                      style={styles.tabActiveGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                  )}
+                  <BookOpen size={16} color={selectedTab === 'surahs' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
+                  <Text style={[styles.tabText, { color: selectedTab === 'surahs' ? colors.primary : colors.textSecondary }]}>
+                    Surahs
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.tab, selectedTab === 'hadith' && styles.activeTab]}
+                  onPress={() => setSelectedTab('hadith')}
+                  activeOpacity={0.7}>
+                  {selectedTab === 'hadith' && (
+                    <LinearGradient
+                      colors={[colors.primary + '40', colors.primary + '20']}
+                      style={styles.tabActiveGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                  )}
+                  <Book size={16} color={selectedTab === 'hadith' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
+                  <Text style={[styles.tabText, { color: selectedTab === 'hadith' ? colors.primary : colors.textSecondary }]}>
+                    Hadith
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.tab, selectedTab === 'recent' && styles.activeTab]}
+                  onPress={() => setSelectedTab('recent')}
+                  activeOpacity={0.7}>
+                  {selectedTab === 'recent' && (
+                    <LinearGradient
+                      colors={[colors.primary + '40', colors.primary + '20']}
+                      style={styles.tabActiveGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                  )}
+                  <Volume2 size={16} color={selectedTab === 'recent' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
+                  <Text style={[styles.tabText, { color: selectedTab === 'recent' ? colors.primary : colors.textSecondary }]}>
+                    Recent
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.tab, selectedTab === 'bookmarks' && styles.activeTab]}
+                  onPress={() => setSelectedTab('bookmarks')}
+                  activeOpacity={0.7}>
+                  {selectedTab === 'bookmarks' && (
+                    <LinearGradient
+                      colors={[colors.primary + '40', colors.primary + '20']}
+                      style={styles.tabActiveGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                  )}
+                  <Bookmark size={16} color={selectedTab === 'bookmarks' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
+                  <Text style={[styles.tabText, { color: selectedTab === 'bookmarks' ? colors.primary : colors.textSecondary }]}>
+                    Bookmarks
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+
+              {/* Quran Mode Button */}
               <TouchableOpacity
-                style={[styles.tab, selectedTab === 'surahs' && styles.activeTab]}
-                onPress={() => setSelectedTab('surahs')}
+                style={styles.quranModeTabButton}
+                onPress={enterQuranMode}
                 activeOpacity={0.7}>
-                {selectedTab === 'surahs' && (
-                  <LinearGradient
-                    colors={[colors.primary + '40', colors.primary + '20']}
-                    style={styles.tabActiveGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
-                )}
-                <BookOpen size={16} color={selectedTab === 'surahs' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
-                <Text style={[styles.tabText, { color: selectedTab === 'surahs' ? colors.primary : colors.textSecondary }]}>
-                  Surahs
-                </Text>
+                <Moon size={18} color={colors.primary} strokeWidth={2.5} />
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.tab, selectedTab === 'hadith' && styles.activeTab]}
-                onPress={() => setSelectedTab('hadith')}
-                activeOpacity={0.7}>
-                {selectedTab === 'hadith' && (
-                  <LinearGradient
-                    colors={[colors.primary + '40', colors.primary + '20']}
-                    style={styles.tabActiveGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
-                )}
-                <Book size={16} color={selectedTab === 'hadith' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
-                <Text style={[styles.tabText, { color: selectedTab === 'hadith' ? colors.primary : colors.textSecondary }]}>
-                  Hadith
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.tab, selectedTab === 'recent' && styles.activeTab]}
-                onPress={() => setSelectedTab('recent')}
-                activeOpacity={0.7}>
-                {selectedTab === 'recent' && (
-                  <LinearGradient
-                    colors={[colors.primary + '40', colors.primary + '20']}
-                    style={styles.tabActiveGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
-                )}
-                <Volume2 size={16} color={selectedTab === 'recent' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
-                <Text style={[styles.tabText, { color: selectedTab === 'recent' ? colors.primary : colors.textSecondary }]}>
-                  Recent
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.tab, selectedTab === 'bookmarks' && styles.activeTab]}
-                onPress={() => setSelectedTab('bookmarks')}
-                activeOpacity={0.7}>
-                {selectedTab === 'bookmarks' && (
-                  <LinearGradient
-                    colors={[colors.primary + '40', colors.primary + '20']}
-                    style={styles.tabActiveGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
-                )}
-                <Bookmark size={16} color={selectedTab === 'bookmarks' ? colors.primary : colors.textSecondary} strokeWidth={2.5} />
-                <Text style={[styles.tabText, { color: selectedTab === 'bookmarks' ? colors.primary : colors.textSecondary }]}>
-                  Bookmarks
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
+            </View>
           </LinearGradient>
         </BlurView>
       </View>
@@ -832,6 +853,11 @@ const styles = StyleSheet.create({
   tabGradient: {
     padding: 4,
   },
+  tabsWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   tabsRow: {
     flexDirection: 'row',
     paddingHorizontal: 4,
@@ -858,6 +884,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
     zIndex: 1,
+  },
+  quranModeTabButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
   },
   content: {
     flex: 1,
@@ -1242,133 +1277,176 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  // Quran Mode Styles
-  quranModeContainer: {
+  
+  // Quran Mode List Styles
+  quranModeListContainer: {
     flex: 1,
+    backgroundColor: '#F5F1E8',
   },
-  quranModeGradient: {
-    flex: 1,
-  },
-  quranModeHeader: {
+  quranModeListHeader: {
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 20,
+    backgroundColor: '#F5F1E8',
+    borderBottomWidth: 1,
+    borderBottomColor: '#D4C4A8',
   },
-  quranModeHeaderBlur: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
+  quranModeListHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  quranModeHeaderContent: {
+  quranModeListTitle: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#5C4A3A',
+  },
+  quranModeListContent: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 100,
+  },
+  quranModeSurahCard: {
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8DCC8',
+  },
+  quranModeSurahContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
+    gap: 16,
   },
-  quranModeTitleSection: {
+  quranModeSurahNumber: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E8DCC8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quranModeSurahNumberText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#5C4A3A',
+  },
+  quranModeSurahInfo: {
     flex: 1,
   },
   quranModeSurahName: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 4,
-    letterSpacing: -0.4,
-  },
-  quranModeArabicName: {
     fontSize: 18,
     fontWeight: '600',
+    color: '#2C2416',
+    marginBottom: 4,
   },
-  quranModeExit: {
-    width: 44,
-    height: 44,
+  quranModeSurahArabic: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#8B7355',
   },
-  exitBlur: {
-    flex: 1,
-    borderRadius: 22,
+  quranModeSurahMeta: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
+    gap: 8,
   },
-  quranModeScroll: {
+  quranModeSurahVerses: {
+    fontSize: 14,
+    color: '#8B7355',
+  },
+  
+  // Reading View Styles
+  quranReadingContainer: {
+    flex: 1,
+    backgroundColor: '#F5F1E8',
+  },
+  paperPage: {
     flex: 1,
   },
-  quranModeContent: {
+  readingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
     paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D4C4A8',
   },
-  bismillahContainer: {
+  readingHeaderCenter: {
+    alignItems: 'center',
+  },
+  readingHeaderTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#5C4A3A',
+    marginBottom: 4,
+  },
+  readingHeaderSubtitle: {
+    fontSize: 14,
+    color: '#8B7355',
+  },
+  pageScroll: {
+    flex: 1,
+  },
+  pageContent: {
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  bismillahSection: {
     alignItems: 'center',
     paddingVertical: 32,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D4C4A8',
+    marginBottom: 32,
   },
-  bismillah: {
-    fontSize: 24,
+  bismillahText: {
+    fontSize: 26,
     fontWeight: '600',
-    textAlign: 'center',
+    color: '#5C4A3A',
   },
-  verseContainer: {
-    marginBottom: 20,
+  versesSection: {
+    marginBottom: 40,
   },
-  verseBlur: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  verseContent: {
-    padding: 20,
-  },
-  verseNumberBadge: {
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  verseNumberGradient: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  verseNumber: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  verseArabic: {
-    fontSize: 22,
-    lineHeight: 40,
+  quranPageText: {
+    fontSize: 28,
+    lineHeight: 56,
     textAlign: 'right',
-    marginBottom: 16,
-    fontWeight: '500',
-  },
-  verseTranslation: {
-    fontSize: 15,
-    lineHeight: 24,
+    color: '#2C2416',
     fontWeight: '400',
   },
-  quranModeControls: {
-    position: 'absolute',
-    bottom: 40,
-    left: 24,
-    right: 24,
-  },
-  controlsBlur: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  controlsRow: {
+  pageNavigation: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    paddingBottom: 40,
+    borderTopWidth: 1,
+    borderTopColor: '#D4C4A8',
   },
-  controlButton: {
-    width: 50,
-    height: 50,
+  navButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D4C4A8',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 25,
+  },
+  navButtonDisabled: {
+    opacity: 0.3,
+  },
+  pageIndicator: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    backgroundColor: '#E8DCC8',
+  },
+  pageNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#5C4A3A',
   },
 });
