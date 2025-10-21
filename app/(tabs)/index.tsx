@@ -33,7 +33,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 const { width, height } = Dimensions.get('window');
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// Floating Particle Component
+// Reduced Floating Particles - Only 2 for performance
 const FloatingParticle = ({ delay = 0, x = 0 }) => {
   const translateY = useSharedValue(height);
   const opacity = useSharedValue(0);
@@ -41,7 +41,7 @@ const FloatingParticle = ({ delay = 0, x = 0 }) => {
   useEffect(() => {
     translateY.value = withRepeat(
       withTiming(-100, {
-        duration: 8000 + Math.random() * 4000,
+        duration: 10000, // Slower = less updates
         easing: Easing.linear,
       }),
       -1,
@@ -49,8 +49,8 @@ const FloatingParticle = ({ delay = 0, x = 0 }) => {
     );
     opacity.value = withRepeat(
       withSequence(
-        withTiming(0.6, { duration: 2000 }),
-        withTiming(0, { duration: 2000 })
+        withTiming(0.4, { duration: 3000 }),
+        withTiming(0, { duration: 3000 })
       ),
       -1,
       false
@@ -73,148 +73,32 @@ const FloatingParticle = ({ delay = 0, x = 0 }) => {
   );
 };
 
-// Islamic Pattern Background - Enhanced & More Visible
+// Simplified Islamic Pattern - Much lighter
 const IslamicPattern = () => (
-  <Svg width={width} height={340} style={styles.patternSvg}>
+  <Svg width={width} height={280} style={styles.patternSvg}>
     <Defs>
       <SvgLinearGradient id="patternGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.12" />
-        <Stop offset="100%" stopColor="#ffffff" stopOpacity="0.18" />
+        <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.08" />
+        <Stop offset="100%" stopColor="#ffffff" stopOpacity="0.12" />
       </SvgLinearGradient>
     </Defs>
     
-    {/* Left Mosque Silhouette - More Detailed */}
-    <Path
-      d={`M ${width * 0.12} 300 L ${width * 0.12} 260 L ${width * 0.15} 250 L ${width * 0.18} 260 L ${width * 0.18} 300`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2.5"
-      fill="rgba(255,255,255,0.05)"
-    />
-    <Path
-      d={`M ${width * 0.15} 250 L ${width * 0.15} 200`}
-      stroke="url(#patternGrad)"
-      strokeWidth="3"
-    />
-    <Circle cx={width * 0.15} cy={195} r="8" fill="url(#patternGrad)" />
-    <Path
-      d={`M ${width * 0.08} 280 L ${width * 0.22} 280 L ${width * 0.22} 300 L ${width * 0.08} 300 Z`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-      fill="rgba(255,255,255,0.04)"
-    />
-    {/* Minarets */}
-    <Path
-      d={`M ${width * 0.1} 280 L ${width * 0.1} 220`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-    />
-    <Circle cx={width * 0.1} cy={215} r="5" fill="url(#patternGrad)" />
-    <Path
-      d={`M ${width * 0.2} 280 L ${width * 0.2} 220`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-    />
-    <Circle cx={width * 0.2} cy={215} r="5" fill="url(#patternGrad)" />
-
-    {/* Right Mosque Silhouette - More Detailed */}
-    <Path
-      d={`M ${width * 0.82} 300 L ${width * 0.82} 260 L ${width * 0.85} 250 L ${width * 0.88} 260 L ${width * 0.88} 300`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2.5"
-      fill="rgba(255,255,255,0.05)"
-    />
-    <Path
-      d={`M ${width * 0.85} 250 L ${width * 0.85} 200`}
-      stroke="url(#patternGrad)"
-      strokeWidth="3"
-    />
-    <Circle cx={width * 0.85} cy={195} r="8" fill="url(#patternGrad)" />
-    <Path
-      d={`M ${width * 0.78} 280 L ${width * 0.92} 280 L ${width * 0.92} 300 L ${width * 0.78} 300 Z`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-      fill="rgba(255,255,255,0.04)"
-    />
-    {/* Minarets */}
-    <Path
-      d={`M ${width * 0.8} 280 L ${width * 0.8} 220`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-    />
-    <Circle cx={width * 0.8} cy={215} r="5" fill="url(#patternGrad)" />
-    <Path
-      d={`M ${width * 0.9} 280 L ${width * 0.9} 220`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-    />
-    <Circle cx={width * 0.9} cy={215} r="5" fill="url(#patternGrad)" />
-
-    {/* Crescent Moons - Top Corners */}
-    <Path
-      d={`M ${width * 0.08} 80 Q ${width * 0.06} 90 ${width * 0.08} 100 Q ${width * 0.11} 90 ${width * 0.08} 80`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2.5"
-      fill="none"
-    />
-    <Circle cx={width * 0.095} cy={85} r="3" fill="url(#patternGrad)" />
-    
-    <Path
-      d={`M ${width * 0.92} 80 Q ${width * 0.94} 90 ${width * 0.92} 100 Q ${width * 0.89} 90 ${width * 0.92} 80`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2.5"
-      fill="none"
-    />
-    <Circle cx={width * 0.905} cy={85} r="3" fill="url(#patternGrad)" />
-
-    {/* Islamic Stars - 8 Pointed */}
-    <Path
-      d={`M ${width * 0.15} 120 L ${width * 0.155} 110 L ${width * 0.16} 120 L ${width * 0.17} 115 L ${width * 0.17} 125 L ${width * 0.16} 120 L ${width * 0.155} 130 L ${width * 0.15} 120 L ${width * 0.14} 125 L ${width * 0.14} 115 Z`}
-      fill="url(#patternGrad)"
-      opacity="0.7"
-    />
-    <Path
-      d={`M ${width * 0.85} 120 L ${width * 0.855} 110 L ${width * 0.86} 120 L ${width * 0.87} 115 L ${width * 0.87} 125 L ${width * 0.86} 120 L ${width * 0.855} 130 L ${width * 0.85} 120 L ${width * 0.84} 125 L ${width * 0.84} 115 Z`}
-      fill="url(#patternGrad)"
-      opacity="0.7"
-    />
-
-    {/* Geometric Islamic Patterns - Center */}
-    <Circle cx={width * 0.5} cy={160} r="30" stroke="url(#patternGrad)" strokeWidth="2" fill="none" opacity="0.6" />
-    <Circle cx={width * 0.5} cy={160} r="20" stroke="url(#patternGrad)" strokeWidth="1.5" fill="none" opacity="0.6" />
-    <Path
-      d={`M ${width * 0.5 - 25} 160 L ${width * 0.5 + 25} 160 M ${width * 0.5} ${160 - 25} L ${width * 0.5} ${160 + 25}`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-      opacity="0.6"
-    />
-    <Path
-      d={`M ${width * 0.5 - 18} ${160 - 18} L ${width * 0.5 + 18} ${160 + 18} M ${width * 0.5 - 18} ${160 + 18} L ${width * 0.5 + 18} ${160 - 18}`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-      opacity="0.6"
-    />
-
-    {/* More Stars Scattered */}
+    {/* Simple Stars */}
     <Circle cx={width * 0.25} cy={100} r="3" fill="url(#patternGrad)" opacity="0.8" />
-    <Circle cx={width * 0.3} cy={140} r="2.5" fill="url(#patternGrad)" opacity="0.7" />
     <Circle cx={width * 0.75} cy={100} r="3" fill="url(#patternGrad)" opacity="0.8" />
-    <Circle cx={width * 0.7} cy={140} r="2.5" fill="url(#patternGrad)" opacity="0.7" />
-    <Circle cx={width * 0.4} cy={180} r="2" fill="url(#patternGrad)" opacity="0.6" />
-    <Circle cx={width * 0.6} cy={180} r="2" fill="url(#patternGrad)" opacity="0.6" />
-
-    {/* Arabesque Corner Decorations */}
+    <Circle cx={width * 0.4} cy={150} r="2" fill="url(#patternGrad)" opacity="0.6" />
+    <Circle cx={width * 0.6} cy={150} r="2" fill="url(#patternGrad)" opacity="0.6" />
+    
+    {/* Simple Crescent */}
     <Path
-      d={`M ${width * 0.05} 260 Q ${width * 0.03} 250 ${width * 0.05} 240 Q ${width * 0.07} 250 ${width * 0.05} 260`}
+      d={`M ${width * 0.5 - 10} 120 Q ${width * 0.5 - 5} 130 ${width * 0.5 - 10} 140 Q ${width * 0.5 - 15} 130 ${width * 0.5 - 10} 120`}
       stroke="url(#patternGrad)"
       strokeWidth="2"
-      fill="rgba(255,255,255,0.03)"
+      fill="none"
     />
-    <Path
-      d={`M ${width * 0.95} 260 Q ${width * 0.97} 250 ${width * 0.95} 240 Q ${width * 0.93} 250 ${width * 0.95} 260`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-      fill="rgba(255,255,255,0.03)"
-    />
+    
+    {/* Simple Geometric Pattern */}
+    <Circle cx={width * 0.5} cy={180} r="20" stroke="url(#patternGrad)" strokeWidth="1.5" fill="none" opacity="0.5" />
   </Svg>
 );
 
@@ -283,15 +167,6 @@ export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   
   const scrollY = useSharedValue(0);
-  const holoAnim = useSharedValue(0);
-
-  useEffect(() => {
-    holoAnim.value = withRepeat(
-      withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-  }, []);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -299,29 +174,26 @@ export default function HomeScreen() {
     },
   });
 
+  // Simplified animations with better performance
   const greetingStyle = useAnimatedStyle(() => {
-    'worklet';
     const translateY = interpolate(scrollY.value, [0, 60], [0, -30], Extrapolate.CLAMP);
     const opacity = interpolate(scrollY.value, [0, 60], [1, 0], Extrapolate.CLAMP);
     return { transform: [{ translateY }], opacity };
   });
 
   const verseStyle = useAnimatedStyle(() => {
-    'worklet';
     const translateY = interpolate(scrollY.value, [0, 80], [0, -40], Extrapolate.CLAMP);
     const opacity = interpolate(scrollY.value, [0, 80], [1, 0], Extrapolate.CLAMP);
     return { transform: [{ translateY }], opacity };
   });
 
   const statsStyle = useAnimatedStyle(() => {
-    'worklet';
     const translateY = interpolate(scrollY.value, [0, 100], [0, -50], Extrapolate.CLAMP);
     const opacity = interpolate(scrollY.value, [0, 100], [1, 0], Extrapolate.CLAMP);
     return { transform: [{ translateY }], opacity };
   });
 
   const nameStyle = useAnimatedStyle(() => {
-    'worklet';
     const translateY = interpolate(scrollY.value, [0, 150], [0, -25], Extrapolate.CLAMP);
     const scale = interpolate(scrollY.value, [0, 150], [1, 0.7], Extrapolate.CLAMP);
     const opacity = interpolate(scrollY.value, [0, 150], [1, 0.85], Extrapolate.CLAMP);
@@ -329,27 +201,18 @@ export default function HomeScreen() {
   });
 
   const headerStyle = useAnimatedStyle(() => {
-    'worklet';
     const height = interpolate(scrollY.value, [0, 150], [380, 140], Extrapolate.CLAMP);
     return { height };
   });
 
   const gradientOpacity = useAnimatedStyle(() => {
-    'worklet';
     const opacity = interpolate(scrollY.value, [0, 80], [1, 0], Extrapolate.CLAMP);
     return { opacity };
   });
 
   const blurOpacity = useAnimatedStyle(() => {
-    'worklet';
     const opacity = interpolate(scrollY.value, [0, 80], [0, 1], Extrapolate.CLAMP);
     return { opacity };
-  });
-
-  const holoStyle = useAnimatedStyle(() => {
-    'worklet';
-    const translateX = interpolate(holoAnim.value, [0, 1], [-200, 200], Extrapolate.CLAMP);
-    return { transform: [{ translateX }, { rotate: '45deg' }] };
   });
 
   const prayerProgress = 2 / 5;
@@ -375,13 +238,10 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
-        {/* Floating Particles */}
+        {/* Reduced Floating Particles - Only 2 */}
         <View style={styles.particlesContainer}>
-          <FloatingParticle x={30} delay={0} />
-          <FloatingParticle x={width * 0.3} delay={1000} />
-          <FloatingParticle x={width * 0.6} delay={2000} />
-          <FloatingParticle x={width * 0.8} delay={1500} />
-          <FloatingParticle x={width * 0.5} delay={3000} />
+          <FloatingParticle x={width * 0.3} delay={0} />
+          <FloatingParticle x={width * 0.7} delay={1500} />
         </View>
 
         {/* Glassmorphic Blur */}
@@ -440,15 +300,16 @@ export default function HomeScreen() {
       {/* SCROLLABLE CONTENT */}
       <Animated.ScrollView
         onScroll={scrollHandler}
-        scrollEventThrottle={1}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: tabBarHeight + 20 }
         ]}>
         
         <View style={styles.contentSection}>
-          {/* HOLOGRAPHIC GIFT AYAH */}
+          {/* SIMPLIFIED GIFT AYAH - NO SHIMMER */}
           <TouchableOpacity
             style={styles.giftAyahButton}
             onPress={() => router.push('/swipecards')}
@@ -459,30 +320,8 @@ export default function HomeScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}>
               
-              {/* Holographic Shimmer */}
-              <Animated.View style={[styles.holoShimmer, holoStyle]}>
-                <LinearGradient
-                  colors={['transparent', 'rgba(255,255,255,0.3)', 'transparent']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.shimmerGradient}
-                />
-              </Animated.View>
-
               {/* Neon Border */}
               <View style={styles.neonBorder} />
-
-              <View style={styles.sparklesContainer}>
-                <View style={styles.sparkle1}>
-                  <Sparkles size={16} color="#ffffff" opacity={0.4} />
-                </View>
-                <View style={styles.sparkle2}>
-                  <Sparkles size={12} color="#ffffff" opacity={0.3} />
-                </View>
-                <View style={styles.sparkle3}>
-                  <Sparkles size={14} color="#ffffff" opacity={0.35} />
-                </View>
-              </View>
 
               <View style={styles.giftAyahContent}>
                 <View style={styles.giftAyahLeft}>
@@ -751,7 +590,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingTop: 380 },
   contentSection: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
   
-  // HOLOGRAPHIC GIFT AYAH
+  // SIMPLIFIED GIFT AYAH
   giftAyahButton: { 
     marginBottom: 24, 
     borderRadius: 28, 
@@ -763,15 +602,6 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   giftAyahGradient: { padding: 24, position: 'relative', overflow: 'hidden' },
-  holoShimmer: {
-    position: 'absolute',
-    top: -50,
-    left: -100,
-    width: 200,
-    height: 300,
-    zIndex: 1,
-  },
-  shimmerGradient: { flex: 1 },
   neonBorder: {
     position: 'absolute',
     top: 0,
@@ -786,10 +616,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 10,
   },
-  sparklesContainer: { position: 'absolute', width: '100%', height: '100%', zIndex: 2 },
-  sparkle1: { position: 'absolute', top: 15, right: 40 },
-  sparkle2: { position: 'absolute', bottom: 20, left: 30 },
-  sparkle3: { position: 'absolute', top: 40, left: 60 },
   giftAyahContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 3 },
   giftAyahLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   stackedCardsContainer: { position: 'relative', width: 70, height: 70, marginRight: 16 },
