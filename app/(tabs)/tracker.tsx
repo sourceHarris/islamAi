@@ -14,6 +14,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { calculateStreaks, getWeeklyInsights, getHeatmapData, getPrayerAnalytics } from '../../services/trackingService';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -70,6 +72,30 @@ export default function TrackerScreen() {
   const router = useRouter();
   const [activeStreakIndex, setActiveStreakIndex] = useState(0);
   
+  // Tracking Data States
+  const [streaks, setStreaks] = useState({ prayerStreak: 0, quranStreak: 0 });
+  const [insights, setInsights] = useState({ prayersCompleted: 0, totalPrayers: 35, daysActive: 0 });
+  const [heatmapData, setHeatmapData] = useState<any[]>([]);
+  const [prayerAnalytics, setPrayerAnalytics] = useState<any[]>([
+    { name: 'Fajr', completion: 0, color: '#8b5cf6' },
+    { name: 'Dhuhr', completion: 0, color: '#10b981' },
+    { name: 'Asr', completion: 0, color: '#3b82f6' },
+    { name: 'Maghrib', completion: 0, color: '#f59e0b' },
+    { name: 'Isha', completion: 0, color: '#ef4444' },
+  ]);
+  
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadData = async () => {
+        setStreaks(await calculateStreaks());
+        setInsights(await getWeeklyInsights());
+        setHeatmapData(await getHeatmapData());
+        setPrayerAnalytics(await getPrayerAnalytics());
+      };
+      loadData();
+    }, [])
+  );
+
   const pulseAnim = useSharedValue(0);
   const shimmerAnim = useSharedValue(0);
 
@@ -93,10 +119,10 @@ export default function TrackerScreen() {
       title: 'Prayer Streak',
       icon: Flame,
       iconColor: '#f59e0b',
-      current: 7,
+      current: streaks.prayerStreak,
       goal: 30,
-      percentage: 23,
-      subtitle: 'Keep going! 23 more days to reach 30',
+      percentage: Math.min(100, Math.round((streaks.prayerStreak / 30) * 100)),
+      subtitle: `Keep going! ${Math.max(0, 30 - streaks.prayerStreak)} more days to reach 30`,
     },
     {
       id: 'quran',
@@ -104,10 +130,10 @@ export default function TrackerScreen() {
       title: 'Quran Streak',
       icon: BookOpen,
       iconColor: colors.primary,
-      current: 12,
+      current: streaks.quranStreak,
       goal: 40,
-      percentage: 30,
-      subtitle: 'Amazing progress! 28 more days to reach 40',
+      percentage: Math.min(100, Math.round((streaks.quranStreak / 40) * 100)),
+      subtitle: `Amazing progress! ${Math.max(0, 40 - streaks.quranStreak)} more days to reach 40`,
     },
     {
       id: 'report',
@@ -115,11 +141,11 @@ export default function TrackerScreen() {
       title: 'Weekly Insights',
       icon: Sparkles,
       iconColor: '#8b5cf6',
-      date: 'Oct 1 - Oct 7, 2025',
+      date: 'Last 7 Days',
       insights: [
-        { emoji: '🌟', text: 'Fajr consistency up 15%' },
-        { emoji: '📖', text: '12-day Quran streak' },
-        { emoji: '🎯', text: "70% to your 30-day goal" },
+        { emoji: '🌟', text: `${insights.prayersCompleted}/${insights.totalPrayers} prayers completed` },
+        { emoji: '📖', text: `${streaks.quranStreak}-day Quran streak` },
+        { emoji: '🎯', text: `${insights.daysActive} active days this week` },
       ],
     },
   ];
@@ -128,17 +154,6 @@ export default function TrackerScreen() {
     const slideIndex = Math.round(event.nativeEvent.contentOffset.x / (CARD_WIDTH + 20));
     setActiveStreakIndex(slideIndex);
   };
-
-  const generateHeatmapData = () => {
-    const days = [];
-    for (let i = 29; i >= 0; i--) {
-      const intensity = Math.floor(Math.random() * 5);
-      days.push({ day: i, intensity });
-    }
-    return days;
-  };
-
-  const heatmapData = generateHeatmapData();
 
   const getHeatmapColor = (intensity: number) => {
     const baseColor = colors.primary || '#34d399';
@@ -429,9 +444,9 @@ export default function TrackerScreen() {
           
           <View style={styles.statsGrid}>
             {[
-              { icon: CheckSquare, value: '34/35', label: 'Prayers', color: colors.primary },
-              { icon: TrendingUp, value: '85%', label: 'Consistency', color: '#10b981' },
-              { icon: Calendar, value: '6/7', label: 'Days Active', color: '#f59e0b' },
+              { icon: CheckSquare, value: `${insights.prayersCompleted}/${insights.totalPrayers}`, label: 'Prayers', color: colors.primary },
+              { icon: TrendingUp, value: `${Math.round((insights.prayersCompleted / insights.totalPrayers) * 100) || 0}%`, label: 'Consistency', color: '#10b981' },
+              { icon: Calendar, value: `${insights.daysActive}/7`, label: 'Days Active', color: '#f59e0b' },
             ].map((stat, index) => (
               <View key={index} style={styles.statCard}>
                 <BlurView intensity={80} tint="dark" style={styles.statBlur}>
@@ -469,13 +484,7 @@ export default function TrackerScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}>
               <View style={styles.analyticsContent}>
-                {[
-                  { name: 'Fajr', completion: 85, color: '#8b5cf6' },
-                  { name: 'Dhuhr', completion: 100, color: '#10b981' },
-                  { name: 'Asr', completion: 92, color: '#3b82f6' },
-                  { name: 'Maghrib', completion: 100, color: '#f59e0b' },
-                  { name: 'Isha', completion: 88, color: '#ef4444' },
-                ].map((prayer, index) => (
+                {prayerAnalytics.map((prayer, index) => (
                   <View key={index} style={styles.prayerRow}>
                     <View style={styles.prayerLeft}>
                       <LinearGradient 

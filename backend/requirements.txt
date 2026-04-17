@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+alembic
+langchain
+openai
+sentence-transformers
+transformers
+torch
+huggingface-hub
+nltk
+python-dotenv
+pydantic
+numpy

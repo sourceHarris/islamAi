@@ -9,7 +9,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { BookOpen, Compass, Clock, BookHeart, Flame, CircleDot, Moon, Sparkles, Gift, Zap } from 'lucide-react-native';
+import { BookOpen, Clock, BookHeart, Flame, CircleDot, Moon, Sparkles, Gift, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -371,45 +371,6 @@ export default function HomeScreen() {
             <Text style={[styles.nextPrayerCountdown, { color: colors.textSecondary }]}>in 2 hours 15 minutes</Text>
           </View>
 
-          {/* Quick Access - Futuristic */}
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Quick Access</Text>
-          <View style={styles.quickGrid}>
-            <TouchableOpacity 
-              style={[styles.quickCard, { backgroundColor: colors.cardBackground }]}
-              onPress={() => router.push('/qibla')}
-              activeOpacity={0.7}>
-              <View style={styles.quickCardGlow} />
-              <View style={[styles.quickIconContainer, { backgroundColor: `${colors.primary}15` }]}>
-                <View style={[styles.iconGlowLarge, { backgroundColor: colors.primary }]} />
-                <Compass size={32} color={colors.primary} />
-              </View>
-              <Text style={[styles.quickLabel, { color: colors.textPrimary }]}>Qibla</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.quickCard, { backgroundColor: colors.cardBackground }]}
-              onPress={() => router.push('/dhikr')}
-              activeOpacity={0.7}>
-              <View style={styles.quickCardGlow} />
-              <View style={[styles.quickIconContainer, { backgroundColor: `${colors.primary}15` }]}>
-                <View style={[styles.iconGlowLarge, { backgroundColor: colors.primary }]} />
-                <CircleDot size={32} color={colors.primary} />
-              </View>
-              <Text style={[styles.quickLabel, { color: colors.textPrimary }]}>Dhikr</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.quickCard, { backgroundColor: colors.cardBackground }]}
-              onPress={() => router.push('/dua')}
-              activeOpacity={0.7}>
-              <View style={styles.quickCardGlow} />
-              <View style={[styles.quickIconContainer, { backgroundColor: `${colors.primary}15` }]}>
-                <View style={[styles.iconGlowLarge, { backgroundColor: colors.primary }]} />
-                <BookHeart size={32} color={colors.primary} />
-              </View>
-              <Text style={[styles.quickLabel, { color: colors.textPrimary }]}>Du'a</Text>
-            </TouchableOpacity>
-          </View>
 
           {/* Today's Prayers with Progress */}
           <View style={styles.prayerHeaderRow}>

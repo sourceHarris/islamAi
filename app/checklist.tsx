@@ -12,12 +12,7 @@ import { CheckCircle, Circle, Plus, X, Send } from 'lucide-react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 
-interface ChecklistItem {
-  id: string;
-  title: string;
-  completed: boolean;
-  isCustom: boolean;
-}
+import { loadTodayChecklist, saveTodayChecklist, DailyChecklist, ChecklistItem } from '../services/trackingService';
 
 export default function ChecklistScreen() {
   const { colors } = useTheme();
@@ -26,26 +21,24 @@ export default function ChecklistScreen() {
   const [customTitle, setCustomTitle] = useState('');
   const [reflection, setReflection] = useState('');
 
-  const [prayers, setPrayers] = useState<ChecklistItem[]>([
-    { id: 'fajr', title: 'Fajr', completed: false, isCustom: false },
-    { id: 'dhuhr', title: 'Dhuhr', completed: false, isCustom: false },
-    { id: 'asr', title: 'Asr', completed: false, isCustom: false },
-    { id: 'maghrib', title: 'Maghrib', completed: false, isCustom: false },
-    { id: 'isha', title: 'Isha', completed: false, isCustom: false },
-  ]);
-
-  const [quranTracking, setQuranTracking] = useState({
-    read: false,
-    listened: false,
-    minutes: 0,
-  });
-
-  const [dhikr, setDhikr] = useState<ChecklistItem[]>([
-    { id: 'morning', title: 'Morning Adhkar', completed: false, isCustom: false },
-    { id: 'evening', title: 'Evening Adhkar', completed: false, isCustom: false },
-  ]);
-
+  const [checklistDate, setChecklistDate] = useState<string>('');
+  const [prayers, setPrayers] = useState<ChecklistItem[]>([]);
+  const [quranTracking, setQuranTracking] = useState({ read: false, listened: false, minutes: 0 });
+  const [dhikr, setDhikr] = useState<ChecklistItem[]>([]);
   const [customPractices, setCustomPractices] = useState<ChecklistItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  React.useEffect(() => {
+    loadTodayChecklist().then((data) => {
+      setChecklistDate(data.date);
+      setPrayers(data.prayers);
+      setQuranTracking(data.quranTracking);
+      setDhikr(data.dhikr);
+      setCustomPractices(data.customPractices);
+      setReflection(data.reflection || '');
+      setIsLoading(false);
+    });
+  }, []);
 
   const togglePrayer = (id: string) => {
     setPrayers(prayers.map(p => p.id === id ? { ...p, completed: !p.completed } : p));
@@ -77,12 +70,28 @@ export default function ChecklistScreen() {
     setCustomPractices(customPractices.filter(c => c.id !== id));
   };
 
-  const handleSubmit = () => {
-    // Here you would save the data
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    await saveTodayChecklist({
+      date: checklistDate,
+      prayers,
+      quranTracking,
+      dhikr,
+      customPractices,
+      reflection,
+    });
     router.back();
   };
 
-  const completedPrayers = prayers.filter(p => p.completed).length;
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: colors.textPrimary }}>Loading Checklist...</Text>
+      </View>
+    );
+  }
+
+  const completedPrayers = prayers.filter(p => !p.isCustom && p.completed).length;
   const totalProgress = (completedPrayers / 5) * 100;
 
   return (
