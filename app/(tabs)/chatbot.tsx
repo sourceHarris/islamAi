@@ -14,6 +14,7 @@ import {
 import { MessageCircle, Send, Sparkles, BookOpen, Heart, AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE } from '../../constants/config';
 
 interface Message {
   id: number;
@@ -25,11 +26,7 @@ interface Message {
 // Falls back to 'anonymous' if not logged in
 let _cachedUserId = 'anonymous';
 
-// ── Backend URL ────────────────────────────────────────────────────────────────
-// Physical phone on same WiFi → use PC's LAN IP
-// Android emulator           → use http://10.0.2.2:8001
-// Expo Web (browser on PC)   → use http://localhost:8001
-const API_BASE = 'http://192.168.1.8:8001';
+
 
 // Calls the Hidayah FastAPI backend which runs
 // Emotion Detection → FAISS RAG → Groq LLM (Llama 3)

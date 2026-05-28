@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,26 +9,20 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ImageBackground,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../contexts/ThemeContext';
-
-// ── API Backend URL ────────────────────────────────────────────────────────
-// Physical phone on same WiFi → use PC's LAN IP
-// Expo Web (browser on PC)   → use http://localhost:8001
-const API_BASE = 'http://192.168.1.8:8001';
+import { API_BASE } from '../constants/config';
 
 type Tab = 'login' | 'register';
 
 // FastAPI can return detail as a string OR an array of validation objects.
-// This helper always gives back a plain readable string.
 function parseError(detail: any): string {
   if (!detail) return 'Something went wrong. Please try again.';
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {
-    // Pydantic validation error: [{loc, msg, type}, ...]
     return detail.map((e: any) => {
       const field = e.loc ? e.loc[e.loc.length - 1] : '';
       return field ? `${field}: ${e.msg}` : e.msg;
@@ -43,6 +37,7 @@ export default function LoginScreen() {
   const [tab, setTab] = useState<Tab>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   // Login fields
   const [loginEmail, setLoginEmail] = useState('');
@@ -55,6 +50,19 @@ export default function LoginScreen() {
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
 
+  // ── Check backend is reachable ────────────────────────────────────────────
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/`, { method: 'GET' });
+        setBackendOnline(res.ok);
+      } catch {
+        setBackendOnline(false);
+      }
+    };
+    checkBackend();
+  }, []);
+
   const saveSessionAndEnter = async (userData: object) => {
     await AsyncStorage.setItem('hidayah_user', JSON.stringify(userData));
     router.replace('/(tabs)');
@@ -63,6 +71,14 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!loginEmail.trim() || !loginPassword.trim()) {
       setError('Please enter your email and password.');
+      return;
+    }
+    if (backendOnline === false) {
+      Alert.alert(
+        '⚠️ Backend Offline',
+        `Cannot reach the server at ${API_BASE}\n\nMake sure the backend is running:\n  cd backend\n  uvicorn main:app --host 0.0.0.0 --port 8000`,
+        [{ text: 'OK' }]
+      );
       return;
     }
     setError('');
@@ -80,7 +96,12 @@ export default function LoginScreen() {
       if (!res.ok) throw new Error(parseError(data.detail));
       await saveSessionAndEnter(data);
     } catch (e: any) {
-      setError(e.message);
+      const msg: string = e.message ?? '';
+      if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
+        setError(`Cannot reach the server.\n\nMake sure the backend is running at:\n${API_BASE}`);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -91,6 +112,18 @@ export default function LoginScreen() {
       setError('Please fill in Name, Email and Password.');
       return;
     }
+    if (regPassword.length < 4) {
+      setError('Password must be at least 4 characters.');
+      return;
+    }
+    if (backendOnline === false) {
+      Alert.alert(
+        '⚠️ Backend Offline',
+        `Cannot reach the server at ${API_BASE}\n\nMake sure the backend is running:\n  cd backend\n  uvicorn main:app --host 0.0.0.0 --port 8000`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setError('');
     setLoading(true);
     try {
@@ -98,7 +131,7 @@ export default function LoginScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          registration_number: regRegNo.trim() || null,   // optional — backend auto-generates
+          registration_number: regRegNo.trim() || null,
           name: regName.trim(),
           class_name: regClass.trim() || null,
           email: regEmail.trim().toLowerCase(),
@@ -109,7 +142,12 @@ export default function LoginScreen() {
       if (!res.ok) throw new Error(parseError(data.detail));
       await saveSessionAndEnter(data);
     } catch (e: any) {
-      setError(e.message);
+      const msg: string = e.message ?? '';
+      if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('fetch')) {
+        setError(`Cannot reach the server.\n\nMake sure the backend is running at:\n${API_BASE}`);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -128,6 +166,21 @@ export default function LoginScreen() {
             Your Islamic Spiritual Wellness Companion
           </Text>
         </View>
+
+        {/* ── Backend status badge ── */}
+        {backendOnline !== null && (
+          <View style={[
+            styles.statusBadge,
+            { backgroundColor: backendOnline ? '#16a34a18' : '#ef444418', borderColor: backendOnline ? '#16a34a40' : '#ef444440' }
+          ]}>
+            <View style={[styles.statusDot, { backgroundColor: backendOnline ? '#16a34a' : '#ef4444' }]} />
+            <Text style={[styles.statusText, { color: backendOnline ? '#16a34a' : '#ef4444' }]}>
+              {backendOnline
+                ? `Server connected (${API_BASE})`
+                : `⚠️ Server offline — start the backend first!\n${API_BASE}`}
+            </Text>
+          </View>
+        )}
 
         {/* ── Tab switcher ── */}
         <View style={[styles.tabBar, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -156,9 +209,13 @@ export default function LoginScreen() {
                 placeholder="your@email.com" colors={colors} keyboard="email-address" />
               <Field label="Password" value={loginPassword} onChange={setLoginPassword}
                 placeholder="Your password" secure colors={colors} />
-              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
               <TouchableOpacity
-                style={[styles.btn, { backgroundColor: colors.primary }]}
+                style={[styles.btn, { backgroundColor: loading ? colors.border : colors.primary }]}
                 onPress={handleLogin} disabled={loading}>
                 {loading
                   ? <ActivityIndicator color="#fff" />
@@ -178,9 +235,13 @@ export default function LoginScreen() {
                 placeholder="e.g. SE120222032" colors={colors} autoCapitalize="characters" />
               <Field label="Class (optional)" value={regClass} onChange={setRegClass}
                 placeholder="e.g. BSSE-6A" colors={colors} />
-              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
               <TouchableOpacity
-                style={[styles.btn, { backgroundColor: colors.primary }]}
+                style={[styles.btn, { backgroundColor: loading ? colors.border : colors.primary }]}
                 onPress={handleRegister} disabled={loading}>
                 {loading
                   ? <ActivityIndicator color="#fff" />
@@ -227,9 +288,18 @@ function Field({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingTop: 60 },
-  header: { alignItems: 'center', marginBottom: 32 },
+  header: { alignItems: 'center', marginBottom: 24 },
   logo: { fontSize: 36, fontWeight: '800', marginBottom: 8 },
   subtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+
+  // Status badge
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    borderRadius: 10, borderWidth: 1, padding: 10, marginBottom: 16,
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
+  statusText: { fontSize: 12, flex: 1, lineHeight: 18 },
+
   tabBar: {
     flexDirection: 'row', borderRadius: 12, borderWidth: 1,
     overflow: 'hidden', marginBottom: 20,
@@ -246,7 +316,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: 12, paddingHorizontal: 16,
     paddingVertical: 12, fontSize: 15,
   },
-  error: { color: '#ef4444', fontSize: 13, marginTop: 4, marginBottom: 4 },
+
+  // Error box (replaces bare red text)
+  errorBox: {
+    backgroundColor: '#fef2f2', borderColor: '#fecaca', borderWidth: 1,
+    borderRadius: 10, padding: 12, marginTop: 4, marginBottom: 4,
+  },
+  errorText: { color: '#dc2626', fontSize: 13, lineHeight: 20 },
+
   btn: {
     borderRadius: 14, paddingVertical: 14,
     alignItems: 'center', marginTop: 8,

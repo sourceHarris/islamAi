@@ -5,7 +5,7 @@ import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, ActivityIndicator, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function ThemedApp() {
@@ -21,7 +21,7 @@ function ThemedApp() {
     }
   }, [colors, theme]);
 
-  // ── Auth gate: check if user is logged in ─────────────────────────────────
+  // ── Auth gate: re-evaluates on every route change ─────────────────────────
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -42,9 +42,15 @@ function ThemedApp() {
       }
     };
     checkAuth();
-  }, []);
+  }, [segments]); // ← runs on every segment/route change, not just mount
 
-  if (!authChecked) return null; // Blank screen while checking — avoids flicker
+  if (!authChecked) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <>
