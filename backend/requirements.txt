@@ -8,6 +8,8 @@ email-validator
 langchain
 langchain-core
 langchain-groq
+langchain-google-genai
+google-generativeai
 sentence-transformers
 transformers
 torch

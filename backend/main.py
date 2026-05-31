@@ -32,6 +32,8 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_google_genai import ChatGoogleGenerativeAI
+from google.genai.types import HarmCategory, HarmBlockThreshold
 from langchain_groq import ChatGroq
 import hashlib
 from pydantic import BaseModel, EmailStr, Field
@@ -57,14 +59,21 @@ logger = logging.getLogger("hidayah")
 # Env
 # ---------------------------------------------------------------------------
 
-load_dotenv()
+load_dotenv(override=True)  # override=True ensures .env beats any system env vars (e.g. expired GOOGLE_API_KEY)
 
-GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "").strip()
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()  # primary LLM key (Groq Llama 3.3 70B)
+HADITH_API_KEY: str = os.getenv("HADITH_API_KEY", "").strip()  # optional key for hadithapi.com
 DATASET_PATH: Path = Path(__file__).parent / "dataset.json"
 
-if not GROQ_API_KEY:
+if HADITH_API_KEY:
+    logger.info("HADITH_API_KEY is configured. Dynamic Hadith search is active.")
+else:
+    logger.info("HADITH_API_KEY is not set. Hadith search will fall back to local database.")
+
+if not GOOGLE_API_KEY:
     logger.warning(
-        "GROQ_API_KEY is not set. The /chat endpoint will raise errors."
+        "GOOGLE_API_KEY is not set. The /chat endpoint will raise errors."
     )
 
 # ---------------------------------------------------------------------------
@@ -121,8 +130,18 @@ def _build_faiss_index() -> None:
     logger.info("FAISS index built successfully with %d vectors (dim=%d).", index.ntotal, dim)
 
 
-def _retrieve_context(query: str, top_k: int = 3) -> list[dict[str, Any]]:
-    """Embed *query* and return the top-k metadata records from FAISS."""
+# Maximum L2 distance for a chunk to be considered "relevant".
+# With normalised embeddings, L2 ∈ [0, 2].
+# 0 = identical, 2 = completely opposite. 1.0 is a generous relevance cut-off.
+_FAISS_DISTANCE_THRESHOLD: float = 1.0
+
+
+def _retrieve_context(query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    """
+    Embed *query*, search FAISS, and return only chunks whose distance
+    is below _FAISS_DISTANCE_THRESHOLD (i.e. genuinely relevant results).
+    This prevents the LLM from receiving garbage context that triggers hallucination.
+    """
     if _faiss_index is None or _embedding_model is None:
         return []
 
@@ -132,9 +151,12 @@ def _retrieve_context(query: str, top_k: int = 3) -> list[dict[str, Any]]:
 
     distances, indices = _faiss_index.search(q_embedding, top_k)
     results = []
-    for idx in indices[0]:
-        if 0 <= idx < len(_faiss_metadata):
+    for dist, idx in zip(distances[0], indices[0]):
+        if 0 <= idx < len(_faiss_metadata) and dist < _FAISS_DISTANCE_THRESHOLD:
             results.append(_faiss_metadata[idx])
+            logger.debug("FAISS chunk accepted: idx=%d dist=%.4f", idx, dist)
+        else:
+            logger.debug("FAISS chunk rejected: idx=%d dist=%.4f (above threshold)", idx, dist)
     return results
 
 
@@ -199,7 +221,7 @@ STRICT SOURCE RULES (NON-NEGOTIABLE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. ZERO HALLUCINATION: You are STRICTLY FORBIDDEN from inventing, guessing, or paraphrasing any Surah name, Ayah number, Hadith book name, or Hadith number. Every citation MUST appear VERBATIM from the context block below.
 2. VERBATIM QUOTES: When you cite a source, copy the exact Arabic-translated text from the context. Never abbreviate or rephrase the sacred text.
-3. RELEVANCE CHECK: Before citing, ask yourself — is this verse/hadith directly about the user's question? If the context block contains NO relevant entry, say clearly: "The provided Islamic database does not contain a specific text on this topic. Based on general Shariah principles: [brief principle]." Do NOT force an unrelated verse.
+3. RELEVANCE CHECK: Before citing, ask yourself — is this verse/hadith directly about the user's question? If the database does not contain the answer, do NOT guess based on general principles. Simply state: 'I don't have the specific ruling for this in my current knowledge base, please consult a scholar.'
 4. NO OUTSIDE MEMORY: Even if you know a relevant Ayah or Hadith from your training data, you MUST NOT cite it unless it is present in the context block.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -221,7 +243,20 @@ MANDATORY RESPONSE STRUCTURE
 
 **Application:** [2-3 sentences explaining how this evidence answers the question in practice]
 
-**اردو ترجمہ (Urdu Summary):** [Brief Urdu-only translation of the key points. CRITICAL: Write EXCLUSIVELY in Urdu script (Nastaliq). You are STRICTLY FORBIDDEN from using Hindi (Devanagari), Chinese, or any non-Urdu characters. Only use the Urdu alphabet: ا ب پ ت ث ج چ ح خ د ذ ر ز ژ س ش ص ض ط ظ ع غ ف ق ک گ ل م ن و ہ ی]
+**Translation / ترجمہ:**
+- DETECT the language of the user's message automatically.
+- If the user wrote in English or Urdu: add a brief Urdu summary in Urdu script ONLY (ا ب پ ت ث ج چ ح خ د ذ ر ز ژ س ش ص ض ط ظ ع غ ف ق ک گ ل م ن و ہ ی). Label it **اردو ترجمہ:**
+- If the user wrote in Arabic: reply fully in Arabic. No English needed.
+- If the user wrote in French, Turkish, Indonesian, Malay, or any other language: reply ENTIRELY in that language (including Answer, Evidence, Application). Do NOT force English or Urdu.
+- The goal: the user always reads in their own language.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SOURCES RULE (CRITICAL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- The frontend will automatically display a 📚 Sources list based on what you quote above.
+- You MUST ONLY quote citations you actually use in the 'Evidence from Quran & Sunnah' section.
+- Do NOT mention, reference, or allude to any source you are not directly quoting verbatim.
+- If you use 2 citations in Evidence, only those 2 will appear in Sources. Never pad with extras.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ABSOLUTE CONSTRAINTS
@@ -230,7 +265,8 @@ ABSOLUTE CONSTRAINTS
 - NEVER roleplay as a historical figure or Islamic scholar.
 - NEVER state something is "haram" or "halal" without a direct citation from the context.
 - ALWAYS add "(PBUH)" or "(S.A.W)" after any mention of the Prophet Muhammad.
-- TONE: Warm, scholarly, respectful. Like a knowledgeable Muslim friend, not a legal authority."""
+- TONE: Warm, scholarly, respectful. Like a knowledgeable Muslim friend, not a legal authority.
+- LANGUAGE: Always respond in the same language the user wrote their question in."""
 
 _HUMAN_PROMPT = (
     "Context (retrieved from verified Islamic database — USE ONLY THESE SOURCES):\n"
@@ -247,20 +283,193 @@ _prompt_template = ChatPromptTemplate.from_messages(
     ]
 )
 
+_INTENT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", "Classify the intent of the user message into exactly ONE of these categories: Chit-Chat, Emotional, or Fiqh/Knowledge. Output ONLY the category name."),
+    ("human", "{user_message}")
+])
+
+_CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", "You are Hidayah. Reply warmly to the user's greeting. Do not provide religious rulings."),
+    ("human", "{user_message}")
+])
+
+# Safety settings — set to BLOCK_NONE so Gemini never refuses Islamic
+# religious content (Quran verses, Hadith, worship topics, etc.).
+_GEMINI_SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+}
+
+
+def _get_llm():
+    """Returns the configured LLM instance."""
+    if GROQ_API_KEY:
+        logger.info("Using Groq Llama 3.3 70B as LLM.")
+        return ChatGroq(
+            model="llama-3.3-70b-versatile",
+            temperature=0.0,
+            max_tokens=1500,
+            api_key=GROQ_API_KEY,
+        )
+    elif GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 20:
+        logger.info("Groq key absent — using Google Gemini 1.5 Flash as fallback LLM.")
+        return ChatGoogleGenerativeAI(
+            model="gemini-1.5-flash",
+            temperature=0.0,
+            google_api_key=GOOGLE_API_KEY,
+            max_output_tokens=1500,
+            top_p=1,
+            top_k=1,
+            safety_settings=_GEMINI_SAFETY_SETTINGS,
+        )
+    else:
+        raise RuntimeError("No valid LLM API key available (GROQ_API_KEY or GOOGLE_API_KEY).")
+
+
 def _build_langchain_chain():
+    return _prompt_template | _get_llm() | StrOutputParser()
+
+def _build_intent_chain():
+    return _INTENT_PROMPT | _get_llm() | StrOutputParser()
+
+def _build_chitchat_chain():
+    return _CHITCHAT_PROMPT | _get_llm() | StrOutputParser()
+
+
+# ── Keyword Extraction & External API Fetchers ─────────────────────────────
+
+_KEYWORD_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", (
+        "You are an Islamic database search assistant. Your task is to extract EXACTLY ONE key search word "
+        "(in English, e.g. 'patience', 'purification', 'fasting', 'parents', 'charity', 'forgiveness') "
+        "from the user's question that would be most effective for a database keyword search. "
+        "Do not include any introductory text, pleasantries, punctuation, quotes, or markdown. "
+        "Output ONLY the single search word. If there are multiple potential keywords, choose the most central one."
+    )),
+    ("human", "{user_message}")
+])
+
+
+def _build_keyword_chain():
+    return _KEYWORD_PROMPT | _get_llm() | StrOutputParser()
+
+
+def _fetch_external_quran(keyword: str) -> list[dict[str, Any]]:
     """
-    Returns a LangChain chain using Groq's Llama 3.3 70B Versatile.
-    Upgraded from 8B → 70B: 9x more parameters, far superior reasoning
-    and Islamic knowledge comprehension, still completely FREE on Groq.
-    temperature=0.0 eliminates hallucinations and randomness.
+    Queries Al-Quran Cloud Search API to find verses matching the keyword.
+    Returns parsed list of standard chunk dicts in English (Sahih International).
     """
-    llm = ChatGroq(
-        model="llama-3.3-70b-versatile",   # ← Upgraded: 70B vs 8B = 9x more accurate
-        temperature=0.0,                    # ← Zero temperature = no hallucinations
-        groq_api_key=GROQ_API_KEY,
-        max_tokens=1500,                    # ← Enough for full structured response
-    )
-    return _prompt_template | llm | StrOutputParser()
+    if not keyword or len(keyword.strip()) < 2:
+        return []
+    
+    import requests
+    from urllib.parse import quote
+    
+    clean_keyword = keyword.strip()
+    words = clean_keyword.split()
+    
+    # Try the full keyword query first
+    queries_to_try = [clean_keyword]
+    if len(words) > 1:
+        # Also try the first word as a fallback
+        queries_to_try.append(words[0])
+        # Also try the last word as a fallback if the first fails
+        queries_to_try.append(words[-1])
+        
+    for q in queries_to_try:
+        url = f"https://api.alquran.cloud/v1/search/{quote(q)}/all/en.sahih"
+        logger.info("Querying Al-Quran Cloud API for keyword: '%s'", q)
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("code") == 200 and data.get("status") == "OK":
+                    ayahs = data.get("data", {}).get("ayahs", [])
+                    results = []
+                    # Return at most 4 verses to avoid overloading context
+                    for ayah in ayahs[:4]:
+                        surah_info = ayah.get("surah", {})
+                        surah_number = surah_info.get("number")
+                        ayah_in_surah = ayah.get("numberInSurah")
+                        surah_name = surah_info.get("englishName", "Unknown Surah")
+                        
+                        results.append({
+                            "id": f"quran_cloud_{surah_number}_{ayah_in_surah}",
+                            "source": "Quran",
+                            "citation": f"Quran {surah_number}:{ayah_in_surah} (Surah {surah_name}, Ayah {ayah_in_surah})",
+                            "text": ayah.get("text", "").strip()
+                        })
+                    if results:
+                        logger.info("Successfully fetched %d verses from Al-Quran Cloud using keyword: '%s'", len(results), q)
+                        return results
+                    else:
+                        logger.info("Al-Quran Cloud: keyword '%s' returned 0 ayahs. Trying next fallback.", q)
+            else:
+                logger.warning("Al-Quran Cloud returned HTTP %d for query: '%s'. Trying next fallback.", response.status_code, q)
+        except Exception as exc:
+            logger.error("Failed to fetch from Al-Quran Cloud for query '%s': %s", q, exc)
+            
+    return []
+
+
+def _fetch_external_hadith(keyword: str) -> list[dict[str, Any]]:
+    """
+    Queries HadithAPI.com to find authentic hadiths matching the keyword.
+    Only runs if HADITH_API_KEY is configured in the environment.
+    """
+    if not HADITH_API_KEY:
+        logger.debug("HADITH_API_KEY not configured. Skipping Hadith API call.")
+        return []
+    
+    if not keyword or len(keyword.strip()) < 2:
+        return []
+    
+    import requests
+    from urllib.parse import quote
+    
+    url = f"https://hadithapi.com/api/hadiths?apiKey={HADITH_API_KEY}&hadithEnglish={quote(keyword.strip())}&limit=3"
+    logger.info("Querying HadithAPI for keyword: '%s'", keyword)
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code != 200:
+            logger.warning("HadithAPI returned status code: %d", response.status_code)
+            return []
+            
+        data = response.json()
+        hadith_list = []
+        if "hadiths" in data:
+            hadith_list = data["hadiths"]
+        elif "data" in data:
+            if isinstance(data["data"], list):
+                hadith_list = data["data"]
+            elif isinstance(data["data"], dict) and "data" in data["data"]:
+                hadith_list = data["data"]["data"]
+        
+        results = []
+        for item in hadith_list[:3]:
+            text = item.get("hadithEnglish") or item.get("english") or item.get("text")
+            if not text:
+                continue
+                
+            book = item.get("bookName") or item.get("book") or "Hadith"
+            number = item.get("hadithNumber") or item.get("number") or "N/A"
+            chapter = item.get("chapterName") or item.get("chapter") or ""
+            chapter_info = f" (Chapter: {chapter})" if chapter else ""
+            
+            results.append({
+                "id": f"hadith_api_{item.get('id') or number}",
+                "source": "Hadith",
+                "citation": f"{book} {number}{chapter_info}",
+                "text": text.strip()
+            })
+            
+        logger.info("Successfully fetched %d hadiths from HadithAPI.", len(results))
+        return results
+    except Exception as exc:
+        logger.error("Failed to fetch from HadithAPI: %s", exc)
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -481,45 +690,111 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     4. Call Groq Llama 3 (temperature=0.0) and return the response.
     5. Log the interaction to user_moods table for weekly analytics.
     """
-    # ── Step 1: Emotion detection ─────────────────────────────────────────────
+    # ── Step 1: Intent classification & Emotion detection ─────────────────────
     detected_emotion: str = detect_emotion(request.message)
     logger.info("User emotion detected: %s", detected_emotion)
 
-    # ── Step 2: FAISS retrieval ───────────────────────────────────────────────
-    retrieved_chunks = _retrieve_context(request.message, top_k=5)  # ↑ from 3→5 for richer context
-
-    if retrieved_chunks:
-        context_block = "\n\n".join(
-            f"[{chunk['citation']}]\n{chunk['text']}"
-            for chunk in retrieved_chunks
-        )
-    else:
-        context_block = "No relevant context found in the database."
-
-    logger.info("Retrieved %d chunks from FAISS.", len(retrieved_chunks))
-
-    # ── Step 3 & 4: LangChain → Groq LLM ────────────────────────────────────
-    if not GROQ_API_KEY:
+    if not GOOGLE_API_KEY and not GROQ_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="GROQ_API_KEY is not configured on the server.",
+            detail="No LLM API key configured. Set GOOGLE_API_KEY or GROQ_API_KEY in backend/.env.",
         )
 
     try:
-        chain = _build_langchain_chain()
-        llm_reply: str = chain.invoke(
-            {
-                "detected_emotion": detected_emotion,
-                "context": context_block,
-                "user_message": request.message,
-            }
-        )
+        intent_chain = _build_intent_chain()
+        intent = intent_chain.invoke({"user_message": request.message}).strip()
     except Exception as exc:
-        logger.error("LLM call failed: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"LLM service error: {exc}",
-        ) from exc
+        logger.warning("Intent classification failed: %s", exc)
+        intent = "Fiqh/Knowledge"
+    
+    logger.info("User intent classified as: %s", intent)
+
+    retrieved_chunks = []
+    
+    # ── Step 2: Route based on intent ─────────────────────────────────────────
+    if "chit-chat" in intent.lower() or "chitchat" in intent.lower():
+        logger.info("Bypassing RAG for Chit-Chat intent.")
+        try:
+            chitchat_chain = _build_chitchat_chain()
+            llm_reply: str = chitchat_chain.invoke({"user_message": request.message})
+        except Exception as exc:
+            logger.error("LLM call failed: %s", exc, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"LLM service error: {exc}",
+            ) from exc
+    else:
+        # ── Hybrid retrieval for Fiqh/Knowledge and Emotional ─────────────────
+        # 1. Fetch from local FAISS
+        retrieved_chunks = _retrieve_context(request.message, top_k=5)
+        
+        # 2. Extract search keyword for external APIs
+        search_keyword = ""
+        try:
+            keyword_chain = _build_keyword_chain()
+            search_keyword = keyword_chain.invoke({"user_message": request.message}).strip()
+            # Clean up keyword (keep alphanumeric and spaces)
+            search_keyword = "".join(c for c in search_keyword if c.isalnum() or c.isspace()).strip()
+            logger.info("Extracted search keyword for external APIs: '%s'", search_keyword)
+        except Exception as exc:
+            logger.warning("Keyword extraction failed: %s", exc)
+            
+        # 3. Query external APIs if we have a valid keyword
+        external_chunks = []
+        if search_keyword and len(search_keyword) >= 2:
+            # Query Al-Quran Cloud API (Keyless)
+            quran_results = _fetch_external_quran(search_keyword)
+            external_chunks.extend(quran_results)
+            
+            # Query Hadith API (Optional & Keyed)
+            hadith_results = _fetch_external_hadith(search_keyword)
+            external_chunks.extend(hadith_results)
+            
+        # 4. Combine and deduplicate chunks by citation
+        combined_chunks = []
+        seen_citations = set()
+        
+        # Prioritise local FAISS matches first, then enrich with dynamic external API results
+        for chunk in retrieved_chunks + external_chunks:
+            citation_key = chunk.get("citation", "").strip().lower()
+            if citation_key and citation_key not in seen_citations:
+                seen_citations.add(citation_key)
+                combined_chunks.append(chunk)
+                
+        retrieved_chunks = combined_chunks[:8]
+
+        if retrieved_chunks:
+            context_block = "\n\n".join(
+                f"[{chunk['citation']}]\n{chunk['text']}"
+                for chunk in retrieved_chunks
+            )
+        else:
+            context_block = "No relevant context found in the database."
+
+        logger.info("Retrieved %d chunks from Hybrid Search (FAISS + External APIs).", len(retrieved_chunks))
+
+        # ── LangChain → LLM ───────────────────────────────────────────────────
+        try:
+            chain = _build_langchain_chain()
+            llm_reply: str = chain.invoke(
+                {
+                    "detected_emotion": detected_emotion,
+                    "context": context_block,
+                    "user_message": request.message,
+                }
+            )
+            # Guard against empty string responses
+            if not llm_reply or not llm_reply.strip():
+                logger.warning("LLM returned an empty response — using fallback message.")
+                llm_reply = (
+                    "I don't have the specific ruling for this in my current knowledge base, please consult a scholar."
+                )
+        except Exception as exc:
+            logger.error("LLM call failed: %s", exc, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"LLM service error: {exc}",
+            ) from exc
 
     # ── Step 5: Log to mood_logs table (proposal: Weekly Analytics) ──────────
     top_verse = retrieved_chunks[0]["citation"] if retrieved_chunks else None
@@ -552,11 +827,17 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         db.rollback()
         logger.warning("Mood logging failed (non-fatal): %s", exc)
 
-    # ── Build sources list for the frontend ───────────────────────────────────
+    # ── Build sources list — only include sources the LLM actually cited ──────
+    reply_lower = llm_reply.lower()
     sources = [
         {"citation": chunk["citation"], "source": chunk["source"]}
         for chunk in retrieved_chunks
+        if chunk["citation"].lower() in reply_lower
     ]
+    logger.info(
+        "Sources filtered: %d used out of %d retrieved.",
+        len(sources), len(retrieved_chunks)
+    )
 
     return ChatResponse(
         reply=llm_reply,
