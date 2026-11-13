@@ -1,0 +1,429 @@
+{
+  "kind": "local retrieval performance diagnostic, not relevance evaluation",
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+  "torch_version": "2.11.0+cpu",
+  "torch_threads": 12,
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "model_max_seq_length": 256,
+  "index_type": "IndexFlatL2",
+  "vectors": 18265,
+  "dimensions": 384,
+  "index_build_seconds_including_model_load": 79.59723620000113,
+  "requests": 36,
+  "unique_queries": 12,
+  "warmup_requests_excluded": 1,
+  "top_k": 5,
+  "squared_l2_threshold": 1.0,
+  "latency_ms": {
+    "mean": 6.895844444443355,
+    "p50": 6.420499999876483,
+    "p95_nearest_rank": 9.402800000316347,
+    "min": 5.7655000000522705,
+    "max": 14.53380000020843
+  },
+  "observations": [
+    {
+      "query": "What does the Quran say about patience?",
+      "repeat": 1,
+      "latency_ms": 6.758800000170595,
+      "accepted_count": 5,
+      "citations": [
+        "Jami at-Tirmidhi 987",
+        "Quran 25:20 (Surah Al-Furqan, Ayah 20)",
+        "Sunan Ibn Majah 1596",
+        "Quran 16:127 (Surah An-Nahl, Ayah 127)",
+        "Jami at-Tirmidhi 988"
+      ]
+    },
+    {
+      "query": "How should I treat my parents?",
+      "repeat": 1,
+      "latency_ms": 8.38590000057593,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "What is the importance of prayer?",
+      "repeat": 1,
+      "latency_ms": 6.459700000050361,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 8:3 (Surah Al-Anfal, Ayah 3)",
+        "Sunan Abi Dawud 618",
+        "Quran 70:34 (Surah Al-Maarij, Ayah 34)",
+        "Sahih Muslim 1637",
+        "Quran 4:103 (Surah An-Nisa, Ayah 103)"
+      ]
+    },
+    {
+      "query": "How can I seek forgiveness?",
+      "repeat": 1,
+      "latency_ms": 7.243099998959224,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 9:66 (Surah At-Tawbah, Ayah 66)",
+        "Quran 11:90 (Surah Hud, Ayah 90)",
+        "Quran 20:82 (Surah Ta-Ha, Ayah 82)",
+        "Quran 8:70 (Surah Al-Anfal, Ayah 70)",
+        "Quran 17:25 (Surah Al-Isra, Ayah 25)"
+      ]
+    },
+    {
+      "query": "What are the rules of fasting?",
+      "repeat": 1,
+      "latency_ms": 6.264899999223417,
+      "accepted_count": 5,
+      "citations": [
+        "Fiqh us-Sunnah (Fasting - Sawm)",
+        "Sahih Muslim 2672",
+        "Sahih al-Bukhari 1922",
+        "Quran 2:184 (Surah Al-Baqarah, Ayah 184)",
+        "Sunan Ibn Majah 1750"
+      ]
+    },
+    {
+      "query": "What should I say before sleeping?",
+      "repeat": 1,
+      "latency_ms": 5.7655000000522705,
+      "accepted_count": 1,
+      "citations": [
+        "Hisnul Muslim (Before Sleeping)"
+      ]
+    },
+    {
+      "query": "How do I perform wudu?",
+      "repeat": 1,
+      "latency_ms": 6.277700000282493,
+      "accepted_count": 5,
+      "citations": [
+        "Jami at-Tirmidhi 788",
+        "Jami at-Tirmidhi 59",
+        "Jami at-Tirmidhi 81",
+        "Jami at-Tirmidhi 69",
+        "Jami at-Tirmidhi 141"
+      ]
+    },
+    {
+      "query": "What does Islam teach about charity?",
+      "repeat": 1,
+      "latency_ms": 6.911000000400236,
+      "accepted_count": 5,
+      "citations": [
+        "Sunan Ibn Majah 243",
+        "Sahih al-Bukhari 1445",
+        "Sahih al-Bukhari 1395 (Book 24, Hadith 1)",
+        "Sunan Ibn Majah 1844",
+        "Sahih al-Bukhari 1419"
+      ]
+    },
+    {
+      "query": "I feel anxious and need comfort.",
+      "repeat": 1,
+      "latency_ms": 7.203799999842886,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "How should I behave toward neighbours?",
+      "repeat": 1,
+      "latency_ms": 6.374500000674743,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "What should I say before eating?",
+      "repeat": 1,
+      "latency_ms": 6.368799999108887,
+      "accepted_count": 3,
+      "citations": [
+        "Hisnul Muslim (Before Eating)",
+        "Quran 51:27 (Surah Adh-Dhariyat, Ayah 27)",
+        "Sahih Muslim 1242"
+      ]
+    },
+    {
+      "query": "Why should I be grateful?",
+      "repeat": 1,
+      "latency_ms": 6.69479999851319,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 2:56 (Surah Al-Baqarah, Ayah 56)",
+        "Quran 2:52 (Surah Al-Baqarah, Ayah 52)",
+        "Quran 54:35 (Surah Al-Qamar, Ayah 35)",
+        "Quran 27:73 (Surah An-Naml, Ayah 73)",
+        "Quran 56:70 (Surah Al-Waqiah, Ayah 70)"
+      ]
+    },
+    {
+      "query": "What does the Quran say about patience?",
+      "repeat": 2,
+      "latency_ms": 6.705599998895195,
+      "accepted_count": 5,
+      "citations": [
+        "Jami at-Tirmidhi 987",
+        "Quran 25:20 (Surah Al-Furqan, Ayah 20)",
+        "Sunan Ibn Majah 1596",
+        "Quran 16:127 (Surah An-Nahl, Ayah 127)",
+        "Jami at-Tirmidhi 988"
+      ]
+    },
+    {
+      "query": "How should I treat my parents?",
+      "repeat": 2,
+      "latency_ms": 7.174800000939285,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "What is the importance of prayer?",
+      "repeat": 2,
+      "latency_ms": 6.5300999995088205,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 8:3 (Surah Al-Anfal, Ayah 3)",
+        "Sunan Abi Dawud 618",
+        "Quran 70:34 (Surah Al-Maarij, Ayah 34)",
+        "Sahih Muslim 1637",
+        "Quran 4:103 (Surah An-Nisa, Ayah 103)"
+      ]
+    },
+    {
+      "query": "How can I seek forgiveness?",
+      "repeat": 2,
+      "latency_ms": 6.048200000805082,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 9:66 (Surah At-Tawbah, Ayah 66)",
+        "Quran 11:90 (Surah Hud, Ayah 90)",
+        "Quran 20:82 (Surah Ta-Ha, Ayah 82)",
+        "Quran 8:70 (Surah Al-Anfal, Ayah 70)",
+        "Quran 17:25 (Surah Al-Isra, Ayah 25)"
+      ]
+    },
+    {
+      "query": "What are the rules of fasting?",
+      "repeat": 2,
+      "latency_ms": 5.881999999473919,
+      "accepted_count": 5,
+      "citations": [
+        "Fiqh us-Sunnah (Fasting - Sawm)",
+        "Sahih Muslim 2672",
+        "Sahih al-Bukhari 1922",
+        "Quran 2:184 (Surah Al-Baqarah, Ayah 184)",
+        "Sunan Ibn Majah 1750"
+      ]
+    },
+    {
+      "query": "What should I say before sleeping?",
+      "repeat": 2,
+      "latency_ms": 6.138500000815839,
+      "accepted_count": 1,
+      "citations": [
+        "Hisnul Muslim (Before Sleeping)"
+      ]
+    },
+    {
+      "query": "How do I perform wudu?",
+      "repeat": 2,
+      "latency_ms": 6.490800000392483,
+      "accepted_count": 5,
+      "citations": [
+        "Jami at-Tirmidhi 788",
+        "Jami at-Tirmidhi 59",
+        "Jami at-Tirmidhi 81",
+        "Jami at-Tirmidhi 69",
+        "Jami at-Tirmidhi 141"
+      ]
+    },
+    {
+      "query": "What does Islam teach about charity?",
+      "repeat": 2,
+      "latency_ms": 6.070999999792548,
+      "accepted_count": 5,
+      "citations": [
+        "Sunan Ibn Majah 243",
+        "Sahih al-Bukhari 1445",
+        "Sahih al-Bukhari 1395 (Book 24, Hadith 1)",
+        "Sunan Ibn Majah 1844",
+        "Sahih al-Bukhari 1419"
+      ]
+    },
+    {
+      "query": "I feel anxious and need comfort.",
+      "repeat": 2,
+      "latency_ms": 5.7846999989124015,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "How should I behave toward neighbours?",
+      "repeat": 2,
+      "latency_ms": 9.402800000316347,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "What should I say before eating?",
+      "repeat": 2,
+      "latency_ms": 14.53380000020843,
+      "accepted_count": 3,
+      "citations": [
+        "Hisnul Muslim (Before Eating)",
+        "Quran 51:27 (Surah Adh-Dhariyat, Ayah 27)",
+        "Sahih Muslim 1242"
+      ]
+    },
+    {
+      "query": "Why should I be grateful?",
+      "repeat": 2,
+      "latency_ms": 8.37390000015148,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 2:56 (Surah Al-Baqarah, Ayah 56)",
+        "Quran 2:52 (Surah Al-Baqarah, Ayah 52)",
+        "Quran 54:35 (Surah Al-Qamar, Ayah 35)",
+        "Quran 27:73 (Surah An-Naml, Ayah 73)",
+        "Quran 56:70 (Surah Al-Waqiah, Ayah 70)"
+      ]
+    },
+    {
+      "query": "What does the Quran say about patience?",
+      "repeat": 3,
+      "latency_ms": 7.705899999564281,
+      "accepted_count": 5,
+      "citations": [
+        "Jami at-Tirmidhi 987",
+        "Quran 25:20 (Surah Al-Furqan, Ayah 20)",
+        "Sunan Ibn Majah 1596",
+        "Quran 16:127 (Surah An-Nahl, Ayah 127)",
+        "Jami at-Tirmidhi 988"
+      ]
+    },
+    {
+      "query": "How should I treat my parents?",
+      "repeat": 3,
+      "latency_ms": 8.973599999080761,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "What is the importance of prayer?",
+      "repeat": 3,
+      "latency_ms": 6.524200000058045,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 8:3 (Surah Al-Anfal, Ayah 3)",
+        "Sunan Abi Dawud 618",
+        "Quran 70:34 (Surah Al-Maarij, Ayah 34)",
+        "Sahih Muslim 1637",
+        "Quran 4:103 (Surah An-Nisa, Ayah 103)"
+      ]
+    },
+    {
+      "query": "How can I seek forgiveness?",
+      "repeat": 3,
+      "latency_ms": 6.157200001325691,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 9:66 (Surah At-Tawbah, Ayah 66)",
+        "Quran 11:90 (Surah Hud, Ayah 90)",
+        "Quran 20:82 (Surah Ta-Ha, Ayah 82)",
+        "Quran 8:70 (Surah Al-Anfal, Ayah 70)",
+        "Quran 17:25 (Surah Al-Isra, Ayah 25)"
+      ]
+    },
+    {
+      "query": "What are the rules of fasting?",
+      "repeat": 3,
+      "latency_ms": 6.381299999702605,
+      "accepted_count": 5,
+      "citations": [
+        "Fiqh us-Sunnah (Fasting - Sawm)",
+        "Sahih Muslim 2672",
+        "Sahih al-Bukhari 1922",
+        "Quran 2:184 (Surah Al-Baqarah, Ayah 184)",
+        "Sunan Ibn Majah 1750"
+      ]
+    },
+    {
+      "query": "What should I say before sleeping?",
+      "repeat": 3,
+      "latency_ms": 6.674100000964245,
+      "accepted_count": 1,
+      "citations": [
+        "Hisnul Muslim (Before Sleeping)"
+      ]
+    },
+    {
+      "query": "How do I perform wudu?",
+      "repeat": 3,
+      "latency_ms": 6.094000000302913,
+      "accepted_count": 5,
+      "citations": [
+        "Jami at-Tirmidhi 788",
+        "Jami at-Tirmidhi 59",
+        "Jami at-Tirmidhi 81",
+        "Jami at-Tirmidhi 69",
+        "Jami at-Tirmidhi 141"
+      ]
+    },
+    {
+      "query": "What does Islam teach about charity?",
+      "repeat": 3,
+      "latency_ms": 5.969300000288058,
+      "accepted_count": 5,
+      "citations": [
+        "Sunan Ibn Majah 243",
+        "Sahih al-Bukhari 1445",
+        "Sahih al-Bukhari 1395 (Book 24, Hadith 1)",
+        "Sunan Ibn Majah 1844",
+        "Sahih al-Bukhari 1419"
+      ]
+    },
+    {
+      "query": "I feel anxious and need comfort.",
+      "repeat": 3,
+      "latency_ms": 6.302499999947031,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "How should I behave toward neighbours?",
+      "repeat": 3,
+      "latency_ms": 5.949299998974311,
+      "accepted_count": 0,
+      "citations": []
+    },
+    {
+      "query": "What should I say before eating?",
+      "repeat": 3,
+      "latency_ms": 5.782300000646501,
+      "accepted_count": 3,
+      "citations": [
+        "Hisnul Muslim (Before Eating)",
+        "Quran 51:27 (Surah Adh-Dhariyat, Ayah 27)",
+        "Sahih Muslim 1242"
+      ]
+    },
+    {
+      "query": "Why should I be grateful?",
+      "repeat": 3,
+      "latency_ms": 5.892000001040287,
+      "accepted_count": 5,
+      "citations": [
+        "Quran 2:56 (Surah Al-Baqarah, Ayah 56)",
+        "Quran 2:52 (Surah Al-Baqarah, Ayah 52)",
+        "Quran 54:35 (Surah Al-Qamar, Ayah 35)",
+        "Quran 27:73 (Surah An-Naml, Ayah 73)",
+        "Quran 56:70 (Surah Al-Waqiah, Ayah 70)"
+      ]
+    }
+  ],
+  "limitations": [
+    "Single process, serial requests, CPU, warm model.",
+    "Excludes LLM, emotion classification, external APIs and database.",
+    "No human relevance labels; accepted count is not recall."
+  ]
+}

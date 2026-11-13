@@ -1,15 +1,25 @@
-import React, { useState } from 'react';
+import { AppText as Text } from '../components/Typography';
+import { AppBackdrop } from '../components/Glass';
+import { useReducedMotion } from 'react-native-reanimated';
+import ScreenHeader from '../components/ScreenHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { personalStorageKey, savePersonalData } from '../services/personalStorage';
+import { getTodayDateString } from '../services/trackingService';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
 } from 'react-native';
 import { BookHeart, Plus, Edit2, Trash2, X } from 'lucide-react-native';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, fonts } from '../contexts/ThemeContext';
 
 interface Dua {
   id: string;
@@ -21,55 +31,55 @@ interface Dua {
 
 export default function DuaScreen() {
   const { colors } = useTheme();
-  const [duas, setDuas] = useState<Dua[]>([
-    {
-      id: '1',
-      title: 'For Success in Studies',
-      text: 'O Allah, grant me knowledge and understanding. Make learning easy for me and bless my efforts.',
-      category: 'Personal',
-      date: '2025-10-05',
-    },
-    {
-      id: '2',
-      title: 'For My Parents',
-      text: 'My Lord, have mercy upon them as they brought me up when I was small.',
-      category: 'Family',
-      date: '2025-10-04',
-    },
-  ]);
+  const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
+  const [duas, setDuas] = useState<Dua[]>([]);
+  const [storageKey, setStorageKey] = useState('');
+  const [ready, setReady] = useState(false), [saving, setSaving] = useState(false);
+  const [storageError, setStorageError] = useState('');
+  const load = async () => {
+    setStorageError(''); setReady(false);
+    try {
+      const key = await personalStorageKey('duas'), value = await AsyncStorage.getItem(key);
+      const data = value ? JSON.parse(value) : [];
+      if (!Array.isArray(data) || data.some(d => !d || typeof d.id !== 'string' || typeof d.title !== 'string' || typeof d.text !== 'string' || typeof d.category !== 'string' || typeof d.date !== 'string')) throw new Error('Invalid saved prayers');
+      setDuas(data); setStorageKey(key); setReady(true);
+    } catch { setStorageError('Your saved prayers could not be loaded. Retry before editing; existing data has been kept.'); }
+  };
+  useEffect(() => { void load(); }, []);
+  const persist = async (next: Dua[]) => {
+    if (!ready || saving) return false;
+    setSaving(true); setStorageError('');
+    try { await savePersonalData(storageKey, next); setDuas(next); return true; }
+    catch { setStorageError('Your changes could not be saved. Keep this screen open and try again.'); return false; }
+    finally { setSaving(false); }
+  };
   const [modalVisible, setModalVisible] = useState(false);
   const [editingDua, setEditingDua] = useState<Dua | null>(null);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   const [category, setCategory] = useState('Personal');
 
-  const categories = ['Personal', 'Family', 'Health', 'Success', 'Forgiveness', 'Guidance', 'Other'];
+  const categories = [
+    'Personal',
+    'Family',
+    'Health',
+    'Success',
+    'Forgiveness',
+    'Guidance',
+    'Other',
+  ];
 
-  const handleSaveDua = () => {
-    if (title.trim() && text.trim()) {
-      if (editingDua) {
-        setDuas(duas.map(d => d.id === editingDua.id ? {
-          ...d,
-          title,
-          text,
-          category,
-        } : d));
-      } else {
-        const newDua: Dua = {
-          id: Date.now().toString(),
-          title,
-          text,
-          category,
-          date: new Date().toISOString().split('T')[0],
-        };
-        setDuas([newDua, ...duas]);
-      }
-      handleCloseModal();
-    }
+  const handleSaveDua = async () => {
+    if (!title.trim() || !text.trim()) { setStorageError('Enter a title and prayer before saving.'); return; }
+    const next = editingDua ? duas.map(d => d.id === editingDua.id ? { ...d, title: title.trim(), text: text.trim(), category } : d)
+      : [{ id: Date.now().toString(), title: title.trim(), text: text.trim(), category, date: getTodayDateString() }, ...duas];
+    if (await persist(next)) handleCloseModal();
   };
-
   const handleDeleteDua = (id: string) => {
-    setDuas(duas.filter(d => d.id !== id));
+    const remove = () => { void persist(duas.filter(d => d.id !== id)); };
+    if (Platform.OS === 'web') { if (window.confirm('Delete this personal prayer?')) remove(); }
+    else Alert.alert('Delete this prayer?', 'This removes it from this device.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: remove }]);
   };
 
   const handleEditDua = (dua: Dua) => {
@@ -89,54 +99,105 @@ export default function DuaScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingBottom: insets.bottom },
+      ]}
+    >
+      <AppBackdrop />
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
-        <BookHeart size={32} color={colors.primary} />
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Du'a Book</Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Your Private Prayers</Text>
-      </View>
+      <ScreenHeader
+        title="Du'a book"
+        subtitle="Write and revisit your personal prayers."
+      />
 
+      {!!storageError && <View style={{ padding: 16 }}><Text accessibilityRole="alert" style={{ color: colors.danger }}>{storageError}</Text>{!ready && <TouchableOpacity accessibilityRole="button" onPress={load} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.primary }}>Retry loading prayers</Text></TouchableOpacity>}</View>}
       {/* Add Button */}
       <View style={styles.addButtonContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
+          accessibilityRole="button"
           style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => setModalVisible(true)}>
-          <Plus size={24} color="#ffffff" />
-          <Text style={styles.addButtonText}>Add New Du'a</Text>
+          disabled={!ready || saving}
+          onPress={() => setModalVisible(true)}
+        >
+          <Plus size={24} color={colors.onPrimary} />
+          <Text style={[styles.addButtonText, { color: colors.onPrimary }]}>
+            {ready ? "Add New Du'a" : 'Loading saved prayers…'}
+          </Text>
         </TouchableOpacity>
       </View>
 
+      <Text style={{ color: colors.textSecondary, paddingHorizontal: 20, paddingBottom: 12 }}>Saved on this device for your account. These prayers are not synced to the server.</Text>
       {/* Du'a List */}
-      <ScrollView style={styles.duaList} contentContainerStyle={styles.duaListContent}>
+      <ScrollView
+        style={styles.duaList}
+        contentContainerStyle={styles.duaListContent}
+      >
         {duas.length === 0 ? (
           <View style={styles.emptyState}>
             <BookHeart size={64} color={colors.textSecondary} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No du'as yet. Start adding your personal prayers.
+              No du&apos;as yet. Start adding your personal prayers.
             </Text>
           </View>
         ) : (
           duas.map((dua) => (
-            <View key={dua.id} style={[styles.duaCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <View
+              key={dua.id}
+              style={[
+                styles.duaCard,
+                {
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
               <View style={styles.duaHeader}>
                 <View style={styles.duaTitleSection}>
-                  <Text style={[styles.duaTitle, { color: colors.textPrimary }]}>{dua.title}</Text>
-                  <View style={[styles.categoryBadge, { backgroundColor: colors.primary + '20' }]}>
-                    <Text style={[styles.categoryText, { color: colors.primary }]}>{dua.category}</Text>
+                  <Text
+                    style={[styles.duaTitle, { color: colors.textPrimary }]}
+                  >
+                    {dua.title}
+                  </Text>
+                  <View
+                    style={[
+                      styles.categoryBadge,
+                      { backgroundColor: colors.primary + '20' },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.categoryText, { color: colors.primary }]}
+                    >
+                      {dua.category}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.duaActions}>
-                  <TouchableOpacity onPress={() => handleEditDua(dua)} style={styles.actionButton}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit ${dua.title}`}
+                    onPress={() => handleEditDua(dua)}
+                    style={styles.actionButton}
+                  >
                     <Edit2 size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleDeleteDua(dua.id)} style={styles.actionButton}>
-                    <Trash2 size={18} color="#ef4444" />
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${dua.title}`}
+                    onPress={() => handleDeleteDua(dua.id)}
+                    style={styles.actionButton}
+                  >
+                    <Trash2 size={18} color={colors.danger} />
                   </TouchableOpacity>
                 </View>
               </View>
-              <Text style={[styles.duaText, { color: colors.textSecondary }]}>{dua.text}</Text>
-              <Text style={[styles.duaDate, { color: colors.textSecondary }]}>{dua.date}</Text>
+              <Text style={[styles.duaText, { color: colors.textSecondary }]}>
+                {dua.text}
+              </Text>
+              <Text style={[styles.duaDate, { color: colors.textSecondary }]}>
+                {dua.date}
+              </Text>
             </View>
           ))
         )}
@@ -145,56 +206,113 @@ export default function DuaScreen() {
       {/* Add/Edit Modal */}
       <Modal
         visible={modalVisible}
-        animationType="slide"
+        animationType={reduceMotion ? 'none' : 'slide'}
         transparent={true}
-        onRequestClose={handleCloseModal}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+        onRequestClose={handleCloseModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.cardBackground,
+                paddingBottom: Math.max(insets.bottom, 24),
+              },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
-                {editingDua ? 'Edit Du\'a' : 'Add New Du\'a'}
+                {editingDua ? "Edit Du'a" : "Add New Du'a"}
               </Text>
-              <TouchableOpacity onPress={handleCloseModal}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Close editor"
+                style={{
+                  minWidth: 48,
+                  minHeight: 48,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onPress={handleCloseModal}
+              >
                 <X size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalForm}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Title</Text>
+              {!!storageError && <Text accessibilityRole="alert" style={{ color: colors.danger }}>{storageError}</Text>}
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                Title
+              </Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.textPrimary,
+                    borderColor: colors.border,
+                  },
+                ]}
                 placeholder="e.g., For My Health"
                 placeholderTextColor={colors.textSecondary}
                 value={title}
                 onChangeText={setTitle}
               />
 
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Category</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryList}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                Category
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.categoryList}
+              >
                 {categories.map((cat) => (
                   <TouchableOpacity
+                    accessibilityRole="button"
                     key={cat}
                     style={[
                       styles.categoryChip,
-                      { 
-                        backgroundColor: category === cat ? colors.primary : colors.background,
-                        borderColor: colors.border 
-                      }
+                      {
+                        backgroundColor:
+                          category === cat ? colors.primary : colors.background,
+                        borderColor: colors.border,
+                      },
                     ]}
-                    onPress={() => setCategory(cat)}>
-                    <Text style={[
-                      styles.categoryChipText,
-                      { color: category === cat ? '#ffffff' : colors.textPrimary }
-                    ]}>
+                    onPress={() => setCategory(cat)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        {
+                          color:
+                            category === cat
+                              ? colors.onPrimary
+                              : colors.textPrimary,
+                        },
+                      ]}
+                    >
                       {cat}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
 
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Du'a Text</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                Du&apos;a Text
+              </Text>
               <TextInput
-                style={[styles.textArea, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]}
+                style={[
+                  styles.textArea,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.textPrimary,
+                    borderColor: colors.border,
+                  },
+                ]}
                 placeholder="Write your du'a here..."
                 placeholderTextColor={colors.textSecondary}
                 value={text}
@@ -206,19 +324,41 @@ export default function DuaScreen() {
             </ScrollView>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={[styles.cancelButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={handleCloseModal}>
-                <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={[
+                  styles.cancelButton,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={handleCloseModal}
+              >
+                <Text
+                  style={[
+                    styles.cancelButtonText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Cancel
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
+                accessibilityRole="button"
                 style={[styles.saveButton, { backgroundColor: colors.primary }]}
-                onPress={handleSaveDua}>
-                <Text style={styles.saveButtonText}>Save</Text>
+                disabled={!ready || saving}
+                onPress={handleSaveDua}
+              >
+                <Text
+                  style={[styles.saveButtonText, { color: colors.onPrimary }]}
+                >
+                  Save
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -246,6 +386,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   addButtonContainer: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
     padding: 20,
   },
   addButton: {
@@ -253,7 +396,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: 22,
     gap: 8,
   },
   addButtonText: {
@@ -265,6 +408,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   duaListContent: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
@@ -294,6 +440,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   duaTitle: {
+    fontFamily: fonts.display,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -312,11 +459,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 8,
   },
   duaText: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 17,
+    lineHeight: 27,
     marginBottom: 12,
   },
   duaDate: {
@@ -328,10 +479,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
-    maxHeight: '90%',
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -353,6 +507,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
+    fontFamily: fonts.body,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
@@ -364,6 +519,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryChip: {
+    minHeight: 48,
+    justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -375,6 +532,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   textArea: {
+    fontFamily: fonts.body,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,

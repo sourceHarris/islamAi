@@ -1,68 +1,31 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 
-type Theme = 'light' | 'dark';
-
-interface ThemeColors {
-  background: string;
-  cardBackground: string;
-  primary: string;
-  secondary: string;
-  textPrimary: string;
-  textSecondary: string;
-  border: string;
-  tabBar: string;
+export type Theme = 'light' | 'dark';
+export interface ThemeColors {
+  background: string; cardBackground: string; primary: string; secondary: string;
+  onPrimary: string; textPrimary: string; textSecondary: string; border: string;
+  tabBar: string; messageSurface: string; danger: string; dangerSurface: string;
+  surface: string; surfaceMuted: string; gold: string; goldSurface: string;
+  hero: string; onHero: string; readerBackground: string; readerBorder: string;
 }
-
-interface ThemeContextType {
-  theme: Theme;
-  toggleTheme: () => void;
-  colors: ThemeColors;
-}
-
 const lightColors: ThemeColors = {
-  background: '#f8fafc',
-  cardBackground: '#ffffff',
-  primary: '#059669',
-  secondary: '#10b981',
-  textPrimary: '#1f2937',
-  textSecondary: '#6b7280',
-  border: '#e5e7eb',
-  tabBar: '#ffffff',
+  background: '#F1FCF7', cardBackground: '#FFFFFF', primary: '#003626',
+  secondary: '#3B6754', onPrimary: '#FFFFFF', textPrimary: '#141E1B',
+  textSecondary: '#404944', border: '#E5F0EB', tabBar: '#F1FCF7',
+  messageSurface: '#BDEDD5', danger: '#BA1A1A', dangerSurface: '#FFDAD6',
+  surface: '#EBF6F1', surfaceMuted: '#E5F0EB', gold: '#806334',
+  goldSurface: '#F6E8D0', hero: '#134E3A', onHero: '#FFFFFF',
+  readerBackground: '#FBF9F4', readerBorder: '#E8E2D5',
 };
-
-const darkColors: ThemeColors = {
-  background: '#0a0f0d',
-  cardBackground: '#1a2520',
-  primary: '#4ade80',
-  secondary: '#34d399',
-  textPrimary: '#ffffff',
-  textSecondary: '#9ca3af',
-  border: '#2a3a32',
-  tabBar: '#0a0f0d',
-};
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
-
+export const fonts = { body: 'Jakarta', display: 'Garamond', editorialItalic: 'GaramondItalic', arabic: 'Amiri' } as const;
+// The product is intentionally light-only. Legacy saved appearance preferences
+// are ignored; account and practice data are never touched.
+const ThemeContext = createContext<{ theme: Theme; colors: ThemeColors } | undefined>(undefined);
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
-  };
-
-  const colors = theme === 'light' ? lightColors : darkColors;
-
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, colors }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ theme: 'light', colors: lightColors }}>{children}</ThemeContext.Provider>;
 }
-
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within ThemeProvider');
-  }
+  if (!context) throw new Error('useTheme must be used within ThemeProvider');
   return context;
 }

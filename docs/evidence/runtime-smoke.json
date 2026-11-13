@@ -1,0 +1,94 @@
+{
+  "purpose": "Functional smoke check, not accuracy evaluation",
+  "checks": [
+    {
+      "path": "/",
+      "request": null,
+      "status": 200,
+      "latency_ms": 41.61240000030375,
+      "body": {
+        "status": "online",
+        "app": "Hidayah API",
+        "version": "1.0.0",
+        "faiss_docs": 18265
+      }
+    },
+    {
+      "path": "/openapi.json",
+      "request": null,
+      "status": 200,
+      "latency_ms": 22.482700000182376,
+      "body": {
+        "title": "Hidayah API",
+        "paths": [
+          "/",
+          "/chat",
+          "/login",
+          "/register",
+          "/sync_checklist"
+        ]
+      }
+    },
+    {
+      "path": "/chat",
+      "request": {
+        "message": "",
+        "user_id": "anonymous"
+      },
+      "status": 422,
+      "latency_ms": 24.149400000169408,
+      "body": {
+        "detail": [
+          {
+            "type": "string_too_short",
+            "loc": [
+              "body",
+              "message"
+            ],
+            "msg": "String should have at least 1 character",
+            "input": "",
+            "ctx": {
+              "min_length": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "/chat",
+      "request": {
+        "message": "Assalamu alaikum",
+        "user_id": "anonymous"
+      },
+      "status": 502,
+      "latency_ms": 1694.9282000005041,
+      "body": {
+        "detail": "Server/provider failure; inspect local logs without publishing secrets."
+      }
+    },
+    {
+      "path": "/chat",
+      "request": {
+        "message": "What does the Quran say about patience?",
+        "user_id": "anonymous"
+      },
+      "status": 502,
+      "latency_ms": 1583.7520000004588,
+      "body": {
+        "detail": "Server/provider failure; inspect local logs without publishing secrets."
+      }
+    },
+    {
+      "path": "/chat",
+      "request": {
+        "message": "I feel anxious and need comfort.",
+        "user_id": "anonymous"
+      },
+      "status": 502,
+      "latency_ms": 1561.0684999992372,
+      "body": {
+        "detail": "Server/provider failure; inspect local logs without publishing secrets."
+      }
+    }
+  ]
+}

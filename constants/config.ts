@@ -1,18 +1,12 @@
 import { Platform } from 'react-native';
 
-// ── Central API URL ──────────────────────────────────────────────────────────
-// Web (Expo in browser)  → http://localhost:8000
-// Android Emulator       → http://10.0.2.2:8000
-// Physical Phone (WiFi)  → change PHONE_IP below to your PC's local IP
-//                          Run `ipconfig` on your PC and look for IPv4 Address
-const PHONE_IP = '192.168.1.40'; // ← Your PC's WiFi IP (auto-detected)
+import Constants from 'expo-constants';
 
-export const API_BASE: string =
-  Platform.OS === 'web'
-    ? 'http://localhost:8000'
-    : Platform.OS === 'android'
-    ? 'http://10.0.2.2:8000'   // Android emulator
-    : `http://${PHONE_IP}:8000`; // iOS / physical device
+// EXPO_PUBLIC_API_URL can point a physical device or deployed frontend to its API.
+const expoHost = Constants.expoConfig?.hostUri?.split(':')[0];
+const browserHost = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.hostname : null;
+const localHost = expoHost && !['localhost', '127.0.0.1'].includes(expoHost) ? expoHost : Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+export const API_BASE: string = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://' + (browserHost || localHost) + ':8000';
 
 // NOTE: API key removed — all AI calls go through the FastAPI backend (backend/.env).
 // The frontend does NOT need a Groq API key directly.

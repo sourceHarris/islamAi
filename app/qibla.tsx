@@ -1,381 +1,181 @@
-import React, { useState, useEffect } from 'react';
+import { AppText as Text } from '../components/Typography';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
-  Text,
-  StyleSheet,
-  Dimensions,
   TouchableOpacity,
-  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Compass, MapPin, Navigation, Crosshair, Info } from 'lucide-react-native';
-
-const { width, height } = Dimensions.get('window');
+import * as Location from 'expo-location';
+import { Compass, Navigation2 as Navigation } from 'lucide-react-native';
+import { Page, Card, ui } from '../components/DesignSystem';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function QiblaScreen() {
-  const [currentLocation, setCurrentLocation] = useState({
-    latitude: 40.7128,
-    longitude: -74.0060,
-    city: 'New York',
-    country: 'USA',
-  });
-  
-  const [qiblaDirection, setQiblaDirection] = useState(58);
-  const [deviceHeading, setDeviceHeading] = useState(0);
-
-  const calculateQiblaDirection = () => {
-    const kaabahLat = 21.4225;
-    const kaabahLng = 39.8262;
-    
-    const lat1 = currentLocation.latitude * Math.PI / 180;
-    const lat2 = kaabahLat * Math.PI / 180;
-    const deltaLng = (kaabahLng - currentLocation.longitude) * Math.PI / 180;
-    
-    const y = Math.sin(deltaLng) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
-    
-    let bearing = Math.atan2(y, x) * 180 / Math.PI;
-    bearing = (bearing + 360) % 360;
-    
-    setQiblaDirection(bearing);
-  };
-
+  const { colors } = useTheme();
+  const [bearing, setBearing] = useState<number | null>(null);
+  const [heading, setHeading] = useState<number | null>(null);
+  const [coordinates, setCoordinates] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const subscription = useRef<Location.LocationSubscription | null>(null);
+  const mounted = useRef(true);
   useEffect(() => {
-    calculateQiblaDirection();
-  }, [currentLocation]);
-
-  const handleCalibrate = () => {
-    Alert.alert(
-      'Calibrate Compass',
-      'Move your device in a figure-8 pattern to calibrate the compass.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Start', 
-          onPress: () => {
-            setTimeout(() => {
-              Alert.alert('Calibration Complete', 'Your compass has been calibrated successfully.');
-            }, 3000);
-          }
-        },
-      ]
-    );
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      subscription.current?.remove();
+    };
+  }, []);
+  const locate = async () => {
+    setLoading(true);
+    setError('');
+    subscription.current?.remove();
+    setHeading(null);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        if (mounted.current)
+          setError(
+            'Allow location access in your device settings, then try again.',
+          );
+        return;
+      }
+      const { coords } = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      if (!mounted.current) return;
+      const lat = (coords.latitude * Math.PI) / 180,
+        targetLat = (21.4225 * Math.PI) / 180,
+        delta = ((39.8262 - coords.longitude) * Math.PI) / 180;
+      const direction =
+        ((Math.atan2(
+          Math.sin(delta) * Math.cos(targetLat),
+          Math.cos(lat) * Math.sin(targetLat) -
+            Math.sin(lat) * Math.cos(targetLat) * Math.cos(delta),
+        ) *
+          180) /
+          Math.PI +
+          360) %
+        360;
+      setBearing(direction);
+      setCoordinates(
+        `${coords.latitude.toFixed(3)}°, ${coords.longitude.toFixed(3)}°`,
+      );
+      if (Platform.OS !== 'web') {
+        try {
+          const watch = await Location.watchHeadingAsync((value) => {
+            if (mounted.current)
+              setHeading(value.trueHeading >= 0 ? value.trueHeading : null);
+          });
+          if (mounted.current) subscription.current = watch;
+          else watch.remove();
+        } catch {
+          /* The true-north bearing remains usable without a heading sensor. */
+        }
+      }
+    } catch {
+      if (mounted.current)
+        setError(
+          'Your location could not be found. Check location services and try again.',
+        );
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
   };
-
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#059669', '#10b981']}
-        style={styles.header}>
-        <Text style={styles.headerTitle}>Qibla Direction</Text>
-        <Text style={styles.headerSubtitle}>Find the direction to Mecca</Text>
-      </LinearGradient>
-
-      <View style={styles.locationCard}>
-        <View style={styles.locationHeader}>
-          <MapPin size={20} color="#059669" />
-          <Text style={styles.locationTitle}>Current Location</Text>
-        </View>
-        <Text style={styles.locationText}>
-          {currentLocation.city}, {currentLocation.country}
-        </Text>
-        <Text style={styles.coordinatesText}>
-          {currentLocation.latitude.toFixed(4)}°, {currentLocation.longitude.toFixed(4)}°
-        </Text>
-      </View>
-
-      <View style={styles.compassContainer}>
-        <View style={styles.compassWrapper}>
-          <View style={styles.compass}>
-            <LinearGradient
-              colors={['#1f2937', '#374151']}
-              style={styles.compassGradient}>
-              <View style={styles.cardinalContainer}>
-                <Text style={[styles.cardinalText, styles.north]}>N</Text>
-                <Text style={[styles.cardinalText, styles.east]}>E</Text>
-                <Text style={[styles.cardinalText, styles.south]}>S</Text>
-                <Text style={[styles.cardinalText, styles.west]}>W</Text>
-              </View>
-              <View style={styles.centerDot} />
-              <View style={styles.crosshair}>
-                <Crosshair size={32} color="#ffffff" strokeWidth={3} />
-              </View>
-            </LinearGradient>
+    <Page title="Qibla" subtitle="Direction to the Kaaba." back>
+      <Card>
+        <View style={{ alignItems: 'center', paddingVertical: 30, gap: 24 }}>
+          <View
+            style={{
+              width: 200,
+              height: 200,
+              borderRadius: 100,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+            }}
+          >
+            <Text style={[ui.caption, { color: colors.textSecondary }]}>
+              {heading === null ? 'N \u00b7 TRUE NORTH' : 'QIBLA'}
+            </Text>
+            {bearing === null ? (
+              <Compass size={64} color={colors.primary} strokeWidth={1} />
+            ) : (
+              <Navigation
+                accessibilityLabel="Direction toward the Kaaba"
+                size={64}
+                color={colors.primary}
+                strokeWidth={1.5}
+                style={{
+                  transform: [{ rotate: `${bearing - (heading ?? 0)}deg` }],
+                }}
+              />
+            )}
           </View>
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{
+              color: colors.textPrimary,
+              fontSize: 38,
+              fontWeight: '600',
+            }}
+          >
+            {bearing === null ? 'Your Qibla' : `${Math.round(bearing)}°`}
+          </Text>
+          <Text
+            style={[
+              ui.body,
+              { color: colors.textSecondary, textAlign: 'center' },
+            ]}
+          >
+            {bearing === null
+              ? 'Use your location to calculate the direction to the Kaaba.'
+              : heading === null
+                ? 'Clockwise from true north. Use a compass to orient yourself.'
+                : 'Turn until the arrow points straight ahead.'}
+          </Text>
+          {!!coordinates && (
+            <Text style={[ui.caption, { color: colors.textSecondary }]}>
+              {coordinates}
+            </Text>
+          )}
         </View>
-
-        <View style={styles.directionInfo}>
-          <Text style={styles.directionDegrees}>{Math.round(qiblaDirection)}°</Text>
-          <Text style={styles.directionLabel}>to Mecca</Text>
-        </View>
-      </View>
-
-      <View style={styles.accuracyCard}>
-        <View style={styles.accuracyHeader}>
-          <View style={[styles.accuracyDot, { backgroundColor: '#10b981' }]} />
-          <Text style={styles.accuracyTitle}>Qibla Finder Active</Text>
-        </View>
-        <Text style={styles.accuracyDescription}>
-          Point your device towards Mecca based on the direction shown above
-        </Text>
-      </View>
-
-      <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.calibrateButton} onPress={handleCalibrate}>
-          <Navigation size={20} color="#ffffff" />
-          <Text style={styles.calibrateButtonText}>Calibrate Compass</Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          disabled={loading}
+          onPress={locate}
+          style={[
+            ui.primaryButton,
+            { backgroundColor: colors.primary, opacity: loading ? 0.6 : 1 },
+          ]}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.onPrimary} />
+          ) : (
+            <Text style={[ui.rowTitle, { color: colors.onPrimary }]}>
+              {bearing === null ? 'Use my location' : 'Refresh location'}
+            </Text>
+          )}
         </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.infoButton}>
-          <Info size={20} color="#6b7280" />
-          <Text style={styles.infoButtonText}>How to Use</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.distanceCard}>
-        <Text style={styles.distanceTitle}>Distance to Mecca</Text>
-        <Text style={styles.distanceValue}>5,585 km</Text>
-        <Text style={styles.distanceSubtitle}>Great Circle Distance</Text>
-      </View>
-    </View>
+        {!!error && (
+          <Text
+            accessibilityRole="alert"
+            style={[ui.body, { color: colors.textSecondary }]}
+          >
+            {error}
+          </Text>
+        )}
+      </Card>
+      <Text style={[ui.caption, { color: colors.textSecondary }]}>
+        Location is used on this device to calculate the bearing. Keep your
+        device flat and away from metal. Compass readings depend on your
+        device&apos;s sensors.
+      </Text>
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#dcfce7',
-    fontWeight: '500',
-  },
-  locationCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 20,
-    marginTop: -15,
-    padding: 16,
-    borderRadius: 12,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  locationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  locationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginLeft: 8,
-  },
-  locationText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  coordinatesText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  compassContainer: {
-    alignItems: 'center',
-    marginTop: 30,
-    marginBottom: 20,
-  },
-  compassWrapper: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compass: {
-    width: width * 0.7,
-    height: width * 0.7,
-    borderRadius: width * 0.35,
-    overflow: 'hidden',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  compassGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  cardinalContainer: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  cardinalText: {
-    position: 'absolute',
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  north: {
-    top: 15,
-    alignSelf: 'center',
-  },
-  east: {
-    right: 15,
-    top: '50%',
-    marginTop: -10,
-  },
-  south: {
-    bottom: 15,
-    alignSelf: 'center',
-  },
-  west: {
-    left: 15,
-    top: '50%',
-    marginTop: -10,
-  },
-  centerDot: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ffffff',
-    borderWidth: 2,
-    borderColor: '#1f2937',
-  },
-  crosshair: {
-    position: 'absolute',
-  },
-  directionInfo: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  directionDegrees: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  directionLabel: {
-    fontSize: 16,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  accuracyCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 20,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  accuracyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  accuracyDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  accuracyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  accuracyDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 20,
-  },
-  calibrateButton: {
-    flex: 1,
-    backgroundColor: '#3b82f6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  calibrateButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginLeft: 8,
-  },
-  infoButton: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  infoButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginLeft: 8,
-  },
-  distanceCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 100,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  distanceTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginBottom: 8,
-  },
-  distanceValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  distanceSubtitle: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
-});

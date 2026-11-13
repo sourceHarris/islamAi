@@ -1,800 +1,132 @@
-import React, { useEffect } from 'react';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  Platform,
-  StatusBar,
-} from 'react-native';
-import { BookOpen, Clock, BookHeart, Flame, CircleDot, Moon, Sparkles, Gift, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useRouter } from 'expo-router';
-import Animated, {
-  useAnimatedScrollHandler,
-  useSharedValue,
-  useAnimatedStyle,
-  interpolate,
-  Extrapolate,
-  withRepeat,
-  withTiming,
-  withSpring,
-  Easing,
-  useAnimatedProps,
-  withSequence,
-} from 'react-native-reanimated';
-import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import React, { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Share, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter, Href } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ArrowRight, ArrowUp, BookOpen, BookHeart, Check, CircleDot, Clock3, Compass, MessageCircle, Share2, Sparkles, Search, Moon } from 'lucide-react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Svg, { Path } from 'react-native-svg';
+import { displayName } from '../../utils/displayName';
+import { BrandHeader, Card, Chip, ui, hijriDate } from '../../components/DesignSystem';
+import { useTheme, fonts } from '../../contexts/ThemeContext';
+import { DailyChecklist, loadTodayChecklist } from '../../services/trackingService';
+import { fetchAllSurahs } from '../../services/quranApi';
+import { PrayerSettings } from '../../components/PrayerSettings';
+import { fetchPrayerTimes, PrayerSettings as PrayerPreferences, PrayerSchedule } from '../../services/prayerTimes';
 
-const { width, height } = Dimensions.get('window');
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
-// Reduced Floating Particles - Only 2 for performance
-const FloatingParticle = ({ delay = 0, x = 0 }) => {
-  const translateY = useSharedValue(height);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = withRepeat(
-      withTiming(-100, {
-        duration: 10000, // Slower = less updates
-        easing: Easing.linear,
-      }),
-      -1,
-      false
-    );
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.4, { duration: 3000 }),
-        withTiming(0, { duration: 3000 })
-      ),
-      -1,
-      false
-    );
-  }, []);
-
-  const particleStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        styles.particle,
-        { left: x },
-        particleStyle,
-      ]}
-    />
-  );
-};
-
-// Simplified Islamic Pattern - Much lighter
-const IslamicPattern = () => (
-  <Svg width={width} height={280} style={styles.patternSvg}>
-    <Defs>
-      <SvgLinearGradient id="patternGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.08" />
-        <Stop offset="100%" stopColor="#ffffff" stopOpacity="0.12" />
-      </SvgLinearGradient>
-    </Defs>
-    
-    {/* Simple Stars */}
-    <Circle cx={width * 0.25} cy={100} r="3" fill="url(#patternGrad)" opacity="0.8" />
-    <Circle cx={width * 0.75} cy={100} r="3" fill="url(#patternGrad)" opacity="0.8" />
-    <Circle cx={width * 0.4} cy={150} r="2" fill="url(#patternGrad)" opacity="0.6" />
-    <Circle cx={width * 0.6} cy={150} r="2" fill="url(#patternGrad)" opacity="0.6" />
-    
-    {/* Simple Crescent */}
-    <Path
-      d={`M ${width * 0.5 - 10} 120 Q ${width * 0.5 - 5} 130 ${width * 0.5 - 10} 140 Q ${width * 0.5 - 15} 130 ${width * 0.5 - 10} 120`}
-      stroke="url(#patternGrad)"
-      strokeWidth="2"
-      fill="none"
-    />
-    
-    {/* Simple Geometric Pattern */}
-    <Circle cx={width * 0.5} cy={180} r="20" stroke="url(#patternGrad)" strokeWidth="1.5" fill="none" opacity="0.5" />
-  </Svg>
-);
-
-// Circular Progress Component
-type CircularProgressProps = {
-  progress: number;
-  size?: number;
-  strokeWidth?: number;
-  color?: string;
-};
-
-const CircularProgress: React.FC<CircularProgressProps> = ({
-  progress,
-  size = 60,
-  strokeWidth = 4,
-  color = '#10b981',
-}) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-
-  const animatedProgress = useSharedValue(0);
-
-  useEffect(() => {
-    animatedProgress.value = withSpring(progress, {
-      damping: 15,
-      stiffness: 100,
-    });
-  }, [progress]);
-
-  const animatedProps = useAnimatedProps(() => {
-    const strokeDashoffset =
-      circumference - animatedProgress.value * circumference;
-    return { strokeDashoffset };
-  });
-
-  return (
-    <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke="rgba(255, 255, 255, 0.1)"
-        strokeWidth={strokeWidth}
-        fill="none"
-      />
-      <AnimatedCircle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke={color}
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={circumference}
-        animatedProps={animatedProps}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-};
-
+const AYAH = 'إِنَّ مَعَ الْعُسْرِ يُسْرًا';
+const prompts = ['Patience during hardship', 'Dua before sleeping', 'Focus in prayer'];
 export default function HomeScreen() {
-  const { colors } = useTheme();
-  const router = useRouter();
-  const userName = "Huzaifa Haris";
-  
-  const tabBarHeight = useBottomTabBarHeight();
-  
-  const scrollY = useSharedValue(0);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
-
-  // Simplified animations with better performance
-  const greetingStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(scrollY.value, [0, 60], [0, -30], Extrapolate.CLAMP);
-    const opacity = interpolate(scrollY.value, [0, 60], [1, 0], Extrapolate.CLAMP);
-    return { transform: [{ translateY }], opacity };
-  });
-
-  const verseStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(scrollY.value, [0, 80], [0, -40], Extrapolate.CLAMP);
-    const opacity = interpolate(scrollY.value, [0, 80], [1, 0], Extrapolate.CLAMP);
-    return { transform: [{ translateY }], opacity };
-  });
-
-  const statsStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(scrollY.value, [0, 100], [0, -50], Extrapolate.CLAMP);
-    const opacity = interpolate(scrollY.value, [0, 100], [1, 0], Extrapolate.CLAMP);
-    return { transform: [{ translateY }], opacity };
-  });
-
-  const nameStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(scrollY.value, [0, 150], [0, -25], Extrapolate.CLAMP);
-    const scale = interpolate(scrollY.value, [0, 150], [1, 0.7], Extrapolate.CLAMP);
-    const opacity = interpolate(scrollY.value, [0, 150], [1, 0.85], Extrapolate.CLAMP);
-    return { transform: [{ translateY }, { scale }], opacity };
-  });
-
-  const headerStyle = useAnimatedStyle(() => {
-    const height = interpolate(scrollY.value, [0, 150], [380, 140], Extrapolate.CLAMP);
-    return { height };
-  });
-
-  const gradientOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(scrollY.value, [0, 80], [1, 0], Extrapolate.CLAMP);
-    return { opacity };
-  });
-
-  const blurOpacity = useAnimatedStyle(() => {
-    const opacity = interpolate(scrollY.value, [0, 80], [0, 1], Extrapolate.CLAMP);
-    return { opacity };
-  });
-
-  const prayerProgress = 2 / 5;
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-
-      <StatusBar barStyle="light-content" />
-      
-      {/* FUTURISTIC HEADER WITH PATTERNS */}
-      <Animated.View style={[styles.headerContainer, headerStyle]}>
-        {/* Gradient Background */}
-        <Animated.View style={[styles.gradientContainer, gradientOpacity]}>
-          <LinearGradient
-            colors={[colors.primary, `${colors.primary}CC`, `${colors.primary}88`]}
-            style={styles.headerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-          {/* Islamic Pattern Overlay */}
-          <View style={styles.patternOverlay}>
-            <IslamicPattern />
+  const { colors, theme } = useTheme(); const router = useRouter(); const insets = useSafeAreaInsets(); const { width, fontScale } = useWindowDimensions();
+  const [name, setName] = useState(''); const [today, setToday] = useState<DailyChecklist | null>(null);
+  const [lastRead, setLastRead] = useState<{ number: number; name: string } | null>(null); const [error, setError] = useState('');
+  const [prayerSettings, setPrayerSettings] = useState<PrayerPreferences | null>(null);
+  const [schedule, setSchedule] = useState<PrayerSchedule | null>(null), [prayerModal, setPrayerModal] = useState(false);
+  const [prayerError, setPrayerError] = useState('');
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    AsyncStorage.getItem('hidayah_prayer_preferences').then(async value => {
+      if (!value) return;
+      const preferences = JSON.parse(value) as PrayerPreferences;
+      if (active) setPrayerSettings(preferences);
+      const result = await fetchPrayerTimes(preferences);
+      if (active) { setSchedule(result); setPrayerError(''); }
+    }).catch(() => { if (active) { setSchedule(null); setPrayerError('Prayer times could not be refreshed. Open prayer settings to retry.'); } });
+    return () => { active = false; };
+  }, []));
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    Promise.all([AsyncStorage.getItem('hidayah_user'), loadTodayChecklist(), AsyncStorage.getItem('hidayah_recent_surahs')]).then(async ([user, checklist, recent]) => {
+      if (!active) return;
+      try { setName(user ? displayName(JSON.parse(user).name).split(' ')[0] || '' : ''); } catch { setName(''); }
+      setToday(checklist); setError('');
+      try {
+        const ids = JSON.parse(recent || '[]'); const number = Array.isArray(ids) ? ids.find(Number.isInteger) : undefined;
+        if (number) {
+          setLastRead({ number, name: 'Surah ' + number });
+          try { const surahs = await fetchAllSurahs(); if (active) setLastRead({ number, name: surahs.find(s => s.number === number)?.englishName || 'Surah ' + number }); } catch { /* Surah number is enough to reopen real reading history. */ }
+        } else setLastRead(null);
+      } catch { setLastRead(null); }
+    }).catch(() => { if (active) setError('Your practice summary could not be loaded.'); });
+    return () => { active = false; };
+  }, []));
+  const completed = today?.prayers.filter(prayer => !prayer.isCustom && prayer.completed).length ?? 0;
+  const ask = (prompt: string) => router.push({ pathname: '/(tabs)/chatbot', params: { prompt } });
+  const tile = (title: string, detail: string, route: Href, _Icon: typeof Compass) => {
+    const icons = { 'Digital Tasbih': 'fingerprint', 'Qibla Compass': 'explore', 'Dua Book': 'favorite-border', 'Hadith Library': 'history-edu' } as const;
+    const labels = { 'Digital Tasbih': 'Saved', 'Qibla Compass': 'Compass', 'Dua Book': 'Personal', 'Hadith Library': 'Collections' };
+    return <TouchableOpacity key={title} accessibilityRole="button" onPress={() => router.push(route)} style={[s.tile, { backgroundColor: colors.cardBackground, borderColor: theme === 'dark' ? colors.border : 'transparent' }, fontScale > 1.4 && { width: '100%' }]}>
+      <View style={ui.row}><View style={[ui.icon, { width: 40, height: 40, borderRadius: 8, backgroundColor: colors.surfaceMuted }]}><MaterialIcons name={icons[title as keyof typeof icons]} size={24} color={colors.primary} /></View><Chip gold={title === 'Qibla Compass'}>{labels[title as keyof typeof labels]}</Chip></View>
+      <View style={{ gap: 2 }}><Text style={[ui.rowTitle, { color: colors.textPrimary }]}>{title}</Text><Text style={[ui.caption, { color: colors.textSecondary }]}>{detail}</Text></View>
+    </TouchableOpacity>;
+  };
+  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+    {prayerModal && <PrayerSettings visible close={() => setPrayerModal(false)} initial={prayerSettings} save={async (preferences, times) => { await AsyncStorage.setItem('hidayah_prayer_preferences', JSON.stringify(preferences)); setPrayerSettings(preferences); setSchedule(times); setPrayerError(''); }} />}
+    <BrandHeader section="Home" />
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[ui.page, { maxWidth: 620, paddingTop: 10, paddingBottom: 110 + insets.bottom }]}>
+      <View style={{ gap: 12 }}>
+        {!!prayerError && <Text accessibilityRole="alert" style={[ui.caption, { color: colors.danger }]}>{prayerError}</Text>}
+        <View style={ui.row}><Chip gold>{hijriDate()}</Chip><TouchableOpacity accessibilityRole="button" accessibilityLabel="Configure prayer times" onPress={() => setPrayerModal(true)}><Chip>{schedule ? schedule.city + ' · Times' : 'Set prayer times'}</Chip></TouchableOpacity></View>
+        <View style={{ gap: 2 }}><Text accessibilityRole="header" style={[s.greeting, { color: colors.textPrimary }]}>Assalamu Alaikum{name ? ', ' + name : ''}</Text><Text style={[ui.body, { color: colors.textSecondary, fontSize: 14, lineHeight: 22 }]}>May this sacred day bring serenity and light to your heart.</Text></View>
+      </View>
+      <View style={[s.topCards, width >= 760 && { flexDirection: 'row', alignItems: 'flex-start' }]}>
+        <Card style={[s.ayahCard, width >= 760 && { flex: 1.2 }]}>{theme === 'light' && <Svg accessible={false} pointerEvents="none" width={120} height={120} viewBox="0 0 100 100" style={{ position: 'absolute', right: 16, bottom: 12, opacity: .045 }}><Path d="M50 0L61.8 38.2L100 50L61.8 61.8L50 100L38.2 61.8L0 50L38.2 38.2Z" fill={colors.primary} /></Svg>}
+          <View style={ui.row}><View style={s.inline}><Sparkles size={17} color={colors.gold} /><Text style={[ui.small, { color: colors.textSecondary }]}>AYAH OF THE DAY</Text></View><Chip gold>Surah Ash-Sharh · 94:6</Chip></View>
+          <View style={{ alignItems: 'center', paddingVertical: 12, gap: 10 }}>
+            <Text selectable lang="ar" style={[ui.arabic, { color: colors.textPrimary, textAlign: 'center', fontSize: 32 }]}>{AYAH}</Text>
+            <View style={{ height: 2, width: 40, backgroundColor: colors.gold, opacity: .55 }} />
+            <Text style={[s.translation, { color: colors.textPrimary }]}>“Indeed, with hardship comes ease.”</Text>
           </View>
-        </Animated.View>
-
-        {/* Reduced Floating Particles - Only 2 */}
-        <View style={styles.particlesContainer}>
-          <FloatingParticle x={width * 0.3} delay={0} />
-          <FloatingParticle x={width * 0.7} delay={1500} />
+          <Text style={[ui.caption, { color: colors.textSecondary, textAlign: 'center', fontSize: 14, lineHeight: 22 }]}>A gentle reminder that peace is woven directly into every trial you face today. Ease is not a distant reward, but an intimate companion.</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 8 }}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => ask('Help me reflect on Quran 94:6: Indeed, with hardship comes ease.')} style={[ui.primaryButton, s.inline, { flex: 1, backgroundColor: theme === 'dark' ? '#10B981' : colors.primary }]}><MessageCircle size={18} color={colors.onPrimary} /><Text style={[ui.rowTitle, { color: colors.onPrimary, textAlign: 'center', fontSize: 14, fontWeight: '600' }]}>Reflect with Hidayah</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Share Ayah" onPress={() => void Share.share({ message: AYAH + '\n“Indeed, with hardship comes ease.” — Quran 94:6' }).catch(() => setError('Sharing is unavailable on this device.'))} style={[ui.back, { backgroundColor: colors.surfaceMuted }]}><Share2 size={20} color={colors.textSecondary} /></TouchableOpacity>
+          </View>
+        </Card>
+        <Card style={width >= 760 ? { flex: 1 } : undefined}>
+          <View style={ui.row}><View style={s.inline}><Clock3 size={18} color={colors.primary} /><Text style={[ui.rowTitle, { color: colors.textPrimary }]}>Daily Prayers</Text></View><Text accessibilityLiveRegion="polite" style={[ui.small, { color: colors.primary }]}>{today ? completed + ' of 5 completed' : 'Loading…'}</Text></View>
+          <View style={[s.prayerRow, fontScale > 1.4 && { flexWrap: 'wrap' }]}>{(today?.prayers.filter(p => !p.isCustom) || []).map(prayer => <TouchableOpacity accessibilityRole="button" accessibilityLabel={prayer.title + ': ' + (prayer.completed ? 'completed' : 'not recorded') + '. Open checklist'} key={prayer.id} onPress={() => router.push('/checklist')} style={[s.prayer, { backgroundColor: prayer.completed ? colors.messageSurface : colors.surface, borderColor: colors.border }, fontScale > 1.4 && { flexBasis: '28%', flexGrow: 1 }]}>
+            <Text style={[ui.small, { color: colors.textPrimary, textAlign: 'center' }]}>{prayer.title}</Text>
+            <View style={[s.prayerMark, { backgroundColor: prayer.completed ? colors.primary : colors.surfaceMuted }]}>{prayer.completed ? <Check size={17} color={colors.onPrimary} /> : <View style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: colors.textSecondary }} />}</View>
+            <Text style={{ fontFamily: fonts.body, fontSize: 10, color: colors.textSecondary }}>{schedule?.timings[prayer.title] || (prayer.completed ? 'Done' : '--:--')}</Text>
+          </TouchableOpacity>)}</View>
+          {schedule && <Text style={[ui.small, { color: colors.textSecondary }]}>{schedule.city} · {schedule.timezone} · {schedule.date} · {schedule.method}. Calculated times; check your local mosque.</Text>}
+        </Card>
+      </View>
+      {!!error && <Text accessibilityRole="alert" style={[ui.caption, { color: colors.danger }]}>{error}</Text>}
+      <Card style={{ backgroundColor: colors.hero, borderColor: theme === 'dark' ? colors.border : colors.hero, padding: 24 }}>{theme === 'light' && <LinearGradient pointerEvents="none" colors={[colors.hero, colors.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />}
+        <View style={ui.row}><View style={{ flex: 1, gap: 8 }}><Text style={[ui.eyebrow, { color: theme === 'dark' ? colors.gold : '#FFDEA5' }]}>SPIRITUAL COMPANION</Text><Text style={[s.companionTitle, { color: colors.onHero }]}>What is on your heart today?</Text></View><Sparkles color={theme === 'dark' ? colors.gold : '#FFDEA5'} size={26} /></View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{prompts.map(prompt => <TouchableOpacity accessibilityRole="button" key={prompt} onPress={() => ask(prompt)} style={[s.prompt, { backgroundColor: theme === 'dark' ? colors.surfaceMuted : '#FFFFFF18' }]}><Text style={[ui.small, { color: colors.onHero }]}>✦  {prompt}</Text></TouchableOpacity>)}</View>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ask Hidayah a question" onPress={() => router.push('/(tabs)/chatbot')} style={[s.askField, { backgroundColor: theme === 'dark' ? colors.surfaceMuted : '#FFFFFF' }]}><Search size={18} color={theme === 'dark' ? colors.textSecondary : '#404944'} /><Text style={[ui.caption, { flex: 1, color: theme === 'dark' ? colors.textSecondary : '#404944' }]}>Ask about Quran & Sunnah…</Text><View style={[ui.icon, { width: 34, height: 34, borderRadius: 17, backgroundColor: theme === 'dark' ? '#10B981' : colors.primary }]}><ArrowUp size={20} color={colors.onPrimary} /></View></TouchableOpacity>
+      </Card>
+      <View style={{ gap: 10 }}>
+        <View style={ui.row}><Text accessibilityRole="header" style={[ui.sectionTitle, { color: colors.textPrimary }]}>Daily Practice</Text><Text style={[ui.small, { color: colors.textSecondary }]}>Quick Access</Text></View>
+        <TouchableOpacity accessibilityRole="button" onPress={() => router.push(lastRead ? { pathname: '/(tabs)/quran', params: { surah: String(lastRead.number) } } : '/(tabs)/quran')} style={[s.reading, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <View style={[ui.icon, { backgroundColor: colors.surfaceMuted }]}><BookOpen size={25} color={colors.primary} /></View>
+          <View style={{ flex: 1, gap: 3 }}><Text style={[ui.small, { color: colors.gold }]}>{lastRead ? lastRead.name.toUpperCase() : 'QURAN & HADITH'}</Text><Text style={[ui.rowTitle, { color: colors.textPrimary }]}>{lastRead ? 'Continue Reading' : 'Begin Reading'}</Text><Text style={[ui.small, { color: colors.textSecondary }]}>{lastRead ? 'Reopen your last Surah' : 'Your library of guidance'}</Text></View><ArrowRight size={20} color={colors.primary} />
+        </TouchableOpacity>
+        <View style={s.grid}>
+          {tile('Digital Tasbih', 'A moment of remembrance', '/dhikr', CircleDot)}
+          {tile('Qibla Compass', 'Direction to the Kaaba', '/qibla', Compass)}
+          {tile('Dua Book', 'Your personal supplications', '/dua', BookHeart)}
+          {tile('Hadith Library', 'Explore the collections', { pathname: '/(tabs)/quran', params: { tab: 'hadith' } }, BookOpen)}
         </View>
-
-        {/* Glassmorphic Blur */}
-        <Animated.View style={[styles.blurContainer, blurOpacity]}>
-          <BlurView intensity={80} tint="dark" style={styles.blurView}>
-            <View style={[styles.glassOverlay, { backgroundColor: `${colors.primary}20` }]} />
-          </BlurView>
-        </Animated.View>
-
-        {/* Content Layer */}
-        <View style={styles.headerContent}>
-          <Animated.View style={[styles.greetingContainer, greetingStyle]}>
-            <Text style={styles.greeting}>السلام عليكم</Text>
-          </Animated.View>
-
-          <Animated.View style={[styles.nameContainer, nameStyle]}>
-            <Text style={styles.heroTitle}>{userName}</Text>
-          </Animated.View>
-          
-          <Animated.View style={[styles.verseContainer, verseStyle]}>
-            <Text style={styles.arabicVerse}>إِنَّ مَعَ الْعُسْرِ يُسْرًا</Text>
-            <Text style={styles.urduTranslation}>بیشک تنگی کے ساتھ آسانی ہے</Text>
-          </Animated.View>
-
-          {/* Neon Stats */}
-          <Animated.View style={[styles.floatingStats, statsStyle]}>
-            <View style={styles.neonStatContainer}>
-              <LinearGradient
-                colors={['#f59e0b', '#ea580c']}
-                style={styles.statBubbleGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}>
-                <View style={[styles.statGlow, { backgroundColor: '#f59e0b' }]} />
-                <Flame size={22} color="#ffffff" fill="#ffffff" />
-                <Text style={styles.statBubbleNumber}>7</Text>
-                <Text style={styles.statBubbleLabel}>Days</Text>
-              </LinearGradient>
-            </View>
-
-            <View style={styles.neonStatContainer}>
-              <LinearGradient
-                colors={['#10b981', '#059669']}
-                style={styles.statBubbleGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}>
-                <View style={[styles.statGlow, { backgroundColor: '#10b981' }]} />
-                <BookOpen size={22} color="#ffffff" fill="#ffffff" />
-                <Text style={styles.statBubbleNumber}>12</Text>
-                <Text style={styles.statBubbleLabel}>Juz</Text>
-              </LinearGradient>
-            </View>
-          </Animated.View>
-        </View>
-      </Animated.View>
-
-      {/* SCROLLABLE CONTENT */}
-      <Animated.ScrollView
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: tabBarHeight + 20 }
-        ]}>
-        
-        <View style={styles.contentSection}>
-          {/* SIMPLIFIED GIFT AYAH - NO SHIMMER */}
-          <TouchableOpacity
-            style={styles.giftAyahButton}
-            onPress={() => router.push('/swipecards')}
-            activeOpacity={0.9}>
-            <LinearGradient
-              colors={['#10b981', '#059669', '#047857']}
-              style={styles.giftAyahGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}>
-              
-              {/* Neon Border */}
-              <View style={styles.neonBorder} />
-
-              <View style={styles.giftAyahContent}>
-                <View style={styles.giftAyahLeft}>
-                  <View style={styles.stackedCardsContainer}>
-                    <View style={[styles.stackedCard, styles.cardBack2, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
-                    <View style={[styles.stackedCard, styles.cardBack1, { backgroundColor: 'rgba(255,255,255,0.25)' }]} />
-                    <View style={[styles.stackedCard, styles.cardFront, { backgroundColor: 'rgba(255,255,255,0.95)' }]}>
-                      <Gift size={28} color="#10b981" strokeWidth={2.5} />
-                    </View>
-                    <View style={styles.giftBadge}>
-                      <Sparkles size={14} color="#fbbf24" fill="#fbbf24" />
-                    </View>
-                  </View>
-
-                  <View style={styles.giftAyahText}>
-                    <Text style={styles.giftAyahTitle}>Gift Ayah</Text>
-                    <Text style={styles.giftAyahSubtitle}>Open your daily gift ayah ✨</Text>
-                  </View>
-                </View>
-
-                <View style={styles.giftAyahArrow}>
-                  <Zap size={22} color="#ffffff" fill="#ffffff" />
-                </View>
-              </View>
-
-              <View style={styles.premiumBadge}>
-                <Sparkles size={10} color="#fbbf24" fill="#fbbf24" />
-                <Text style={styles.premiumBadgeText}>NEW</Text>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* Next Prayer Card - Enhanced */}
-          <View style={[styles.nextPrayerCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.cardGlow} />
-            <View style={styles.nextPrayerHeader}>
-              <View style={[styles.iconCircle, { backgroundColor: `${colors.primary}20` }]}>
-                <View style={[styles.iconGlowSmall, { backgroundColor: colors.primary }]} />
-                <Clock size={28} color={colors.primary} />
-              </View>
-              <View style={styles.nextPrayerInfo}>
-                <Text style={[styles.nextPrayerLabel, { color: colors.textSecondary }]}>Next Prayer</Text>
-                <Text style={[styles.nextPrayerName, { color: colors.primary }]}>Asr</Text>
-              </View>
-            </View>
-            <Text style={[styles.nextPrayerTime, { color: colors.textPrimary }]}>3:45 PM</Text>
-            <Text style={[styles.nextPrayerCountdown, { color: colors.textSecondary }]}>in 2 hours 15 minutes</Text>
-          </View>
-
-
-          {/* Today's Prayers with Progress */}
-          <View style={styles.prayerHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>Today's Prayers</Text>
-            <View style={styles.progressCircleContainer}>
-              <CircularProgress progress={prayerProgress} size={50} color={colors.primary} />
-              <View style={styles.progressTextContainer}>
-                <Text style={[styles.progressText, { color: colors.textPrimary }]}>2/5</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.prayersList, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.prayersGlow} />
-            {[
-              { name: 'Fajr', time: '5:30 AM', completed: true },
-              { name: 'Dhuhr', time: '12:45 PM', completed: true },
-              { name: 'Asr', time: '3:45 PM', completed: false },
-              { name: 'Maghrib', time: '6:20 PM', completed: false },
-              { name: 'Isha', time: '7:50 PM', completed: false },
-            ].map((prayer, index) => (
-              <View key={index} style={[styles.prayerItem, { borderBottomColor: colors.border }]}>
-                <View style={styles.prayerLeft}>
-                  {prayer.completed ? (
-                    <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
-                      <View style={[styles.checkGlow, { backgroundColor: colors.primary }]} />
-                      <Text style={styles.checkMark}>✓</Text>
-                    </View>
-                  ) : (
-                    <View style={[styles.emptyCircle, { borderColor: colors.border }]} />
-                  )}
-                  <Text style={[styles.prayerName, { color: colors.textPrimary }]}>{prayer.name}</Text>
-                </View>
-                <Text style={[styles.prayerTime, { color: colors.textSecondary }]}>{prayer.time}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Islamic Date - Enhanced */}
-          <View style={[styles.dateCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.dateCardGlow} />
-            <View style={styles.moonContainer}>
-              <View style={[styles.moonGlow, { backgroundColor: colors.primary }]} />
-              <Moon size={28} color={colors.primary} />
-            </View>
-            <View style={styles.dateInfo}>
-              <Text style={[styles.islamicDate, { color: colors.primary }]}>15 Ramadan 1446</Text>
-              <Text style={[styles.gregorianDate, { color: colors.textSecondary }]}>October 8, 2025</Text>
-            </View>
-          </View>
-        </View>
-      </Animated.ScrollView>
-    </SafeAreaView>
-  );
+      </View>
+      <View style={[s.reading, { backgroundColor: colors.surface, borderColor: colors.border }]}><Moon size={23} color={colors.primary} /><View style={{ flex: 1, gap: 3 }}><Text style={[ui.rowTitle, { color: colors.textPrimary }]}>A moment of stillness</Text><Text style={[ui.caption, { color: colors.textSecondary }]}>Prepare your intentions and supplications.</Text></View></View>
+    </ScrollView>
+  </SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    overflow: 'hidden',
-  },
-  gradientContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  headerGradient: {
-    flex: 1,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  patternOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  patternSvg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
-  particlesContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
-  },
-  particle: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#ffffff',
-    shadowColor: '#ffffff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-  },
-  blurContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2,
-  },
-  blurView: {
-    flex: 1,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    overflow: 'hidden',
-  },
-  glassOverlay: {
-    flex: 1,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.18)',
-  },
-  headerContent: {
-    paddingTop: Platform.OS === 'android' ? 40 : 60,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-    flex: 1,
-    zIndex: 3,
-  },
-  greetingContainer: { alignItems: 'center', marginBottom: 8 },
-  greeting: { fontSize: 28, color: '#ffffff', fontWeight: '600' },
-  nameContainer: { alignItems: 'center', marginBottom: 16 },
-  heroTitle: { 
-    fontSize: 34, 
-    fontWeight: '700', 
-    color: '#ffffff', 
-    letterSpacing: 1.2,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
-  },
-  verseContainer: { alignItems: 'center', paddingHorizontal: 20, marginBottom: 24 },
-  arabicVerse: { fontSize: 20, color: '#ffffff', fontWeight: '600', marginBottom: 6, textAlign: 'center' },
-  urduTranslation: { fontSize: 14, color: '#ffffff', opacity: 0.9, textAlign: 'center' },
-  floatingStats: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
-  neonStatContainer: { position: 'relative' },
-  statBubbleGradient: { 
-    paddingHorizontal: 24, 
-    paddingVertical: 14, 
-    borderRadius: 24, 
-    alignItems: 'center', 
-    flexDirection: 'row', 
-    gap: 10, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 6 }, 
-    shadowOpacity: 0.35, 
-    shadowRadius: 10, 
-    elevation: 8,
-    position: 'relative',
-  },
-  statGlow: {
-    position: 'absolute',
-    top: -3,
-    left: -3,
-    right: -3,
-    bottom: -3,
-    borderRadius: 27,
-    opacity: 0.3,
-  },
-  statBubbleNumber: { fontSize: 22, fontWeight: 'bold', color: '#ffffff', zIndex: 1 },
-  statBubbleLabel: { fontSize: 13, color: '#ffffff', fontWeight: '600', zIndex: 1 },
-  scrollContent: { paddingTop: 380 },
-  contentSection: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
-  
-  // SIMPLIFIED GIFT AYAH
-  giftAyahButton: { 
-    marginBottom: 24, 
-    borderRadius: 28, 
-    overflow: 'hidden', 
-    shadowColor: '#10b981', 
-    shadowOffset: { width: 0, height: 12 }, 
-    shadowOpacity: 0.5, 
-    shadowRadius: 20, 
-    elevation: 12,
-  },
-  giftAyahGradient: { padding: 24, position: 'relative', overflow: 'hidden' },
-  neonBorder: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 28,
-    borderWidth: 1.5,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-  },
-  giftAyahContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 3 },
-  giftAyahLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  stackedCardsContainer: { position: 'relative', width: 70, height: 70, marginRight: 16 },
-  stackedCard: { position: 'absolute', width: 50, height: 60, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
-  cardBack2: { top: 0, left: 0, transform: [{ rotate: '-8deg' }] },
-  cardBack1: { top: 4, left: 8, transform: [{ rotate: '-4deg' }] },
-  cardFront: { top: 8, left: 16, alignItems: 'center', justifyContent: 'center' },
-  giftBadge: { position: 'absolute', top: -4, right: 0, zIndex: 10 },
-  giftAyahText: { flex: 1 },
-  giftAyahTitle: { fontSize: 22, fontWeight: 'bold', color: '#ffffff', marginBottom: 4 },
-  giftAyahSubtitle: { fontSize: 14, color: '#ffffff', opacity: 0.95, fontWeight: '500' },
-  giftAyahArrow: { 
-    width: 44, 
-    height: 44, 
-    borderRadius: 22, 
-    backgroundColor: 'rgba(255, 255, 255, 0.25)', 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    shadowColor: '#ffffff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  premiumBadge: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(251, 191, 36, 0.3)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4, zIndex: 4 },
-  premiumBadgeText: { fontSize: 11, fontWeight: 'bold', color: '#fbbf24', letterSpacing: 0.5 },
-
-  // ENHANCED CARDS
-  nextPrayerCard: { 
-    padding: 24, 
-    borderRadius: 24, 
-    marginBottom: 24, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 6 }, 
-    shadowOpacity: 0.12, 
-    shadowRadius: 14, 
-    elevation: 6,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  cardGlow: {
-    position: 'absolute',
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-    borderRadius: 26,
-  },
-  nextPrayerHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, zIndex: 1 },
-  iconCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginRight: 14, position: 'relative' },
-  iconGlowSmall: {
-    position: 'absolute',
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    opacity: 0.15,
-  },
-  nextPrayerInfo: { flex: 1 },
-  nextPrayerLabel: { fontSize: 14, fontWeight: '500', marginBottom: 4 },
-  nextPrayerName: { fontSize: 22, fontWeight: 'bold' },
-  nextPrayerTime: { fontSize: 42, fontWeight: 'bold', marginBottom: 6, zIndex: 1 },
-  nextPrayerCountdown: { fontSize: 16, zIndex: 1 },
-  
-  sectionTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 16 },
-  
-  // FUTURISTIC QUICK ACCESS
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  quickCard: { 
-    flex: 1, 
-    aspectRatio: 1, 
-    borderRadius: 20, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.1, 
-    shadowRadius: 10, 
-    elevation: 5,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  quickCardGlow: {
-    position: 'absolute',
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-    borderRadius: 22,
-  },
-  quickIconContainer: { 
-    width: 64, 
-    height: 64, 
-    borderRadius: 32, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 8,
-    position: 'relative',
-    zIndex: 1,
-  },
-  iconGlowLarge: {
-    position: 'absolute',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    opacity: 0.2,
-  },
-  quickLabel: { fontSize: 13, fontWeight: '600', zIndex: 1 },
-  
-  // PRAYERS WITH PROGRESS
-  prayerHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  progressCircleContainer: {
-    position: 'relative',
-    width: 50,
-    height: 50,
-  },
-  progressTextContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  prayersList: { 
-    borderRadius: 20, 
-    padding: 4, 
-    marginBottom: 24, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.1, 
-    shadowRadius: 10, 
-    elevation: 5,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  prayersGlow: {
-    position: 'absolute',
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    backgroundColor: 'rgba(16, 185, 129, 0.03)',
-    borderRadius: 22,
-  },
-  prayerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1, zIndex: 1 },
-  prayerLeft: { flexDirection: 'row', alignItems: 'center' },
-  checkCircle: { 
-    width: 26, 
-    height: 26, 
-    borderRadius: 13, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginRight: 12,
-    position: 'relative',
-  },
-  checkGlow: {
-    position: 'absolute',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    opacity: 0.25,
-  },
-  checkMark: { color: '#ffffff', fontSize: 14, fontWeight: 'bold', zIndex: 1 },
-  emptyCircle: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, marginRight: 12 },
-  prayerName: { fontSize: 16, fontWeight: '600' },
-  prayerTime: { fontSize: 15, fontWeight: '500' },
-  
-  // ENHANCED DATE CARD
-  dateCard: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 20, 
-    borderRadius: 20, 
-    gap: 16, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.1, 
-    shadowRadius: 10, 
-    elevation: 5,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  dateCardGlow: {
-    position: 'absolute',
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-    borderRadius: 22,
-  },
-  moonContainer: {
-    position: 'relative',
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  moonGlow: {
-    position: 'absolute',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    opacity: 0.15,
-  },
-  dateInfo: { flex: 1, zIndex: 1 },
-  islamicDate: { fontSize: 18, fontWeight: 'bold', marginBottom: 2 },
-  gregorianDate: { fontSize: 14 },
+const s = StyleSheet.create({
+  greeting: { fontFamily: fonts.display, fontSize: 28, lineHeight: 36, fontWeight: '500', letterSpacing: -.5 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 7 }, topCards: { gap: 24 }, ayahCard: { padding: 24, gap: 16 },
+  translation: { fontFamily: fonts.body, fontSize: 18, lineHeight: 27, fontStyle: 'italic', textAlign: 'center' },
+  prayerRow: { flexDirection: 'row', gap: 5 }, prayer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 2, borderWidth: 0 },
+  prayerMark: { width: 27, height: 27, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  companionTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 28, fontWeight: '500' },
+  prompt: { borderRadius: 24, paddingHorizontal: 11, paddingVertical: 6, minHeight: 30, justifyContent: 'center' },
+  askField: { borderRadius: 30, padding: 10, paddingStart: 16, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, tile: { width: '48%', flexGrow: 1, borderWidth: 1, borderRadius: 12, padding: 16, gap: 16, minHeight: 148 },
+  reading: { flexDirection: 'row', alignItems: 'center', gap: 16, borderRadius: 12, borderWidth: 1, padding: 16 },
 });

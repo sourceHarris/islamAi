@@ -1,235 +1,101 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, FlatList,
-  ActivityIndicator, TextInput, Platform,
-} from 'react-native';
-import { ChevronLeft, ChevronRight, Search, X, Book, AlertCircle } from 'lucide-react-native';
-import { fetchHadiths, HadithBook, HadithItem } from '../services/hadithApi';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Share, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, ChevronLeft, ChevronRight, Search, Share2, X } from 'lucide-react-native';
+import { AppText as Text } from './Typography';
+import { Card, ui } from './DesignSystem';
+import { fonts } from '../contexts/ThemeContext';
+import { fetchHadithByNumber, fetchHadiths, hadithSections, hadithCoverage, HadithBook, HadithItem } from '../services/hadithApi';
 
-interface Props {
-  book: HadithBook;
-  onClose: () => void;
-  colors: any;
-}
-
-const BOOK_COLORS: Record<string, string> = {
-  'bukhari': '#10b981', 'muslim': '#3b82f6', 'tirmidzi': '#8b5cf6',
-  'abu-daud': '#f59e0b', 'nasai': '#ec4899', 'ibnu-majah': '#06b6d4',
-  'ahmad': '#f97316', 'malik': '#84cc16', 'darimi': '#a78bfa',
-};
-
+interface Props { book: HadithBook; onClose: () => void; colors: any }
 const PAGE_SIZE = 20;
-
 export default function HadithDetailView({ book, onClose, colors }: Props) {
-  const bookColor = BOOK_COLORS[book.id] ?? colors.primary;
-
-  const [allHadiths, setAllHadiths] = useState<HadithItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<HadithItem[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-
-  const loadPage = useCallback(async (pageNum: number) => {
-    setLoading(true);
-    setError(null);
+  const insets = useSafeAreaInsets();
+  const [items, setItems] = useState<HadithItem[]>([]);
+  const [loading, setLoading] = useState(true), [error, setError] = useState('');
+  const [warning, setWarning] = useState(''), [page, setPage] = useState(1);
+  const [pageSkip, setPageSkip] = useState(0);
+  const [query, setQuery] = useState(''), [numberSearch, setNumberSearch] = useState(false);
+  const [chaptersVisible, setChaptersVisible] = useState(false);
+  const [language, setLanguage] = useState<'english' | 'urdu'>('english');
+  const request = useRef(0), list = useRef<FlatList<HadithItem>>(null);
+  const totalPages = Math.ceil(book.available / PAGE_SIZE);
+  const chapters = hadithSections(book.id);
+  const coverage = hadithCoverage(book.id);
+  const load = useCallback(async (pageNum: number, number?: number) => {
+    const current = ++request.current;
+    setLoading(true); setError(''); setWarning('');
     try {
-      const start = (pageNum - 1) * PAGE_SIZE + 1;
-      const end = Math.min(start + PAGE_SIZE - 1, book.available);
-      const data = await fetchHadiths(book.id, start, end);
-      setAllHadiths(data.hadiths);
-      setTotalPages(Math.ceil(book.available / PAGE_SIZE));
-    } catch {
-      setError('اتصال میں خرابی۔ دوبارہ کوشش کریں۔');
-    } finally {
-      setLoading(false);
-    }
+      const result = number !== undefined ? await fetchHadithByNumber(book.id, number)
+        : await fetchHadiths(book.id, (pageNum - 1) * PAGE_SIZE + 1, Math.min(pageNum * PAGE_SIZE, book.available));
+      if (current !== request.current) return;
+      setItems(result.hadiths); setWarning(result.translationWarning || '');
+      list.current?.scrollToOffset({ offset: 0, animated: false });
+    } catch (e) {
+      if (current === request.current) { setItems([]); setError(e instanceof Error ? e.message : 'Hadith could not be loaded.'); }
+    } finally { if (current === request.current) setLoading(false); }
   }, [book]);
-
-  useEffect(() => { loadPage(1); }, []);
-
-  // Smart search: number → fetch that range; text → filter current hadiths
-  const handleSearch = useCallback(async (query: string) => {
-    setSearchQuery(query);
-    if (!query.trim()) { setIsSearching(false); setSearchResults([]); return; }
-
-    setIsSearching(true);
-    const trimmed = query.trim();
-    const isNumber = /^\d+$/.test(trimmed);
-
-    if (isNumber) {
-      const num = parseInt(trimmed, 10);
-      if (num >= 1 && num <= book.available) {
-        // Jump to that hadith number  
-        setLoading(true);
-        try {
-          const start = Math.max(1, num - 2);
-          const end = Math.min(book.available, num + 2);
-          const data = await fetchHadiths(book.id, start, end);
-          const target = data.hadiths.filter(h => h.number === num);
-          setSearchResults(target.length > 0 ? target : data.hadiths);
-        } catch {
-          setSearchResults([]);
-        } finally {
-          setLoading(false);
-        }
-      }
-    } else {
-      // Filter current page by Arabic text
-      const filtered = allHadiths.filter(h =>
-        h.arab.includes(trimmed) || h.number.toString().includes(trimmed)
-      );
-      setSearchResults(filtered);
-    }
-  }, [allHadiths, book]);
-
-  const displayedHadiths = isSearching ? searchResults : allHadiths;
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={onClose} style={styles.backBtn}>
-          <ChevronLeft size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-            {book.name}
-          </Text>
-          <Text style={[styles.headerSub, { color: bookColor }]}>
-            {book.available.toLocaleString()} احادیث
-          </Text>
-        </View>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {/* Smart Search Bar */}
-      <View style={[styles.searchBar, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-        <Search size={18} color={colors.textSecondary} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.textPrimary }]}
-          placeholder="حدیث نمبر یا متن تلاش کریں..."
-          placeholderTextColor={colors.textSecondary}
-          value={searchQuery}
-          onChangeText={handleSearch}
-          keyboardType="default"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => handleSearch('')}>
-            <X size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Info banner */}
-      <View style={[styles.infoBanner, { backgroundColor: bookColor + '15', borderColor: bookColor + '30' }]}>
-        <Book size={13} color={bookColor} />
-        <Text style={[styles.infoBannerText, { color: bookColor }]}>
-          {isSearching
-            ? `${searchResults.length} نتائج ملے`
-            : `صفحہ ${page} / ${totalPages} • ${book.name}`}
-        </Text>
-      </View>
-
-      {/* Content */}
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={bookColor} />
-          <Text style={[styles.loadingTxt, { color: colors.textSecondary }]}>احادیث لوڈ ہو رہی ہیں...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <AlertCircle size={40} color={colors.textSecondary} />
-          <Text style={[styles.errorTxt, { color: colors.textSecondary }]}>{error}</Text>
-          <TouchableOpacity style={[styles.retryBtn, { borderColor: bookColor }]} onPress={() => loadPage(page)}>
-            <Text style={[styles.retryTxt, { color: bookColor }]}>دوبارہ کوشش کریں</Text>
-          </TouchableOpacity>
-        </View>
-      ) : displayedHadiths.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={[styles.errorTxt, { color: colors.textSecondary }]}>کوئی نتیجہ نہیں ملا</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={displayedHadiths}
-          keyExtractor={(item) => item.number.toString()}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <View style={[styles.hadithCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              {/* Number */}
-              <View style={[styles.numBadge, { backgroundColor: bookColor + '20' }]}>
-                <Text style={[styles.numText, { color: bookColor }]}>#{item.number}</Text>
-              </View>
-              {/* Arabic */}
-              <Text style={[styles.arabicTxt, { color: colors.textPrimary }]} textBreakStrategy="simple">
-                {item.arab}
-              </Text>
-              {/* Source */}
-              <View style={[styles.sourceTag, { backgroundColor: bookColor + '12' }]}>
-                <Text style={[styles.sourceTxt, { color: bookColor }]}>
-                  {book.name} — حدیث {item.number}
-                </Text>
-              </View>
-            </View>
-          )}
-        />
-      )}
-
-      {/* Pagination (hidden during search) */}
-      {!isSearching && !loading && (
-        <View style={[styles.pagination, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
-          <TouchableOpacity
-            style={[styles.pageBtn, page <= 1 && styles.disabled]}
-            disabled={page <= 1}
-            onPress={() => { const p = page - 1; setPage(p); loadPage(p); }}>
-            <ChevronLeft size={20} color={page <= 1 ? colors.border : colors.textPrimary} />
-            <Text style={[styles.pageBtnTxt, { color: page <= 1 ? colors.border : colors.textPrimary }]}>پچھلا</Text>
-          </TouchableOpacity>
-          <Text style={[styles.pageNum, { color: colors.textSecondary }]}>{page} / {totalPages}</Text>
-          <TouchableOpacity
-            style={[styles.pageBtn, page >= totalPages && styles.disabled]}
-            disabled={page >= totalPages}
-            onPress={() => { const p = page + 1; setPage(p); loadPage(p); }}>
-            <Text style={[styles.pageBtnTxt, { color: page >= totalPages ? colors.border : colors.textPrimary }]}>اگلا</Text>
-            <ChevronRight size={20} color={page >= totalPages ? colors.border : colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
-      )}
+  const cancelRequests = useCallback(() => { request.current++; }, []);
+  useEffect(() => { void load(1); return cancelRequests; }, [load, cancelRequests]);
+  const normalized = query.trim().replace(/[٠-٩۰-۹]/g, ch => String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch) >= 0 ? '٠١٢٣٤٥٦٧٨٩'.indexOf(ch) : '۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)));
+  const numeric = /^\d+(\.\d+)?$/.test(normalized);
+  const search = () => {
+    if (numeric) { setNumberSearch(true); void load(page, Number(normalized)); }
+  };
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    // Invalidate an in-flight number request so it cannot overwrite a cleared search.
+    if (numberSearch) { setNumberSearch(false); void load(page); }
+  };
+  const move = (next: number, skip = 0) => { setPage(next); setPageSkip(skip); setQuery(''); setNumberSearch(false); void load(next); };
+  const textQuery = normalized.normalize('NFD').replace(/[\u064B-\u065F\u0670]/g, '').toLowerCase();
+  const pageItems = numberSearch ? items : items.slice(pageSkip);
+  const displayed = !textQuery || numeric ? pageItems : pageItems.filter(item =>
+    [item.arab, item.english, item.urdu, item.section].join(' ').normalize('NFD').replace(/[\u064B-\u065F\u0670]/g, '').toLowerCase().includes(textQuery));
+  return <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: 80 + insets.bottom, backgroundColor: colors.background }}>
+    <View style={[ui.row, { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.border }]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to Hadith books" onPress={onClose} style={ui.back}><ArrowLeft size={23} color={colors.textPrimary} /></TouchableOpacity>
+      <View style={{ flex: 1 }}><Text accessibilityRole="header" style={[ui.sectionTitle, { color: colors.textPrimary }]}>{book.name}</Text><Text style={[ui.small, { color: colors.textSecondary }]}>{book.available.toLocaleString()} narrations · publisher numbering</Text></View>
     </View>
-  );
+    <View style={{ width: '100%', maxWidth: 620, alignSelf: 'center', padding: 16, gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.cardBackground, paddingHorizontal: 10 }}>
+        <TextInput accessibilityLabel="Search Hadith number or this page" value={query} onChangeText={changeQuery} onSubmitEditing={search}
+          placeholder="Hadith number, or text on this page" placeholderTextColor={colors.textSecondary}
+          style={{ flex: 1, minWidth: 0, minHeight: 48, fontFamily: fonts.body, color: colors.textPrimary }} returnKeyType="search" />
+        {!!query && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Clear Hadith search" onPress={() => changeQuery('')} style={ui.back}><X size={18} color={colors.textSecondary} /></TouchableOpacity>}
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Find Hadith number" onPress={search} style={ui.back}><Search size={19} color={colors.primary} /></TouchableOpacity>
+      </View>
+      <View style={ui.row}>
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: chaptersVisible }} onPress={() => setChaptersVisible(v => !v)} style={{ minHeight: 44, justifyContent: 'center', flex: 1 }}><Text style={[ui.caption, { color: colors.primary }]}>{chaptersVisible ? 'Close chapters' : 'Browse chapters'} · {chapters.length}</Text></TouchableOpacity>
+        {(['english', 'urdu'] as const).map(lang => <TouchableOpacity key={lang} accessibilityRole="button" accessibilityState={{ selected: language === lang, disabled: lang === 'urdu' && !coverage.languages.includes('Urdu') }} disabled={lang === 'urdu' && !coverage.languages.includes('Urdu')} onPress={() => setLanguage(lang)}
+          style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 8, backgroundColor: language === lang ? colors.surfaceMuted : 'transparent' }}>
+          <Text style={[ui.caption, { color: colors.textPrimary }]}>{lang === 'english' ? 'English' : 'اردو'}</Text></TouchableOpacity>)}
+      </View>
+      <Text style={[ui.small, { color: colors.textSecondary }]}>Hadith API · Arabic with English / Urdu where supplied. Chapters cache on this device. Text search covers this page; submit a number to search the collection.</Text>
+      {!!coverage.missingArabic && <Text style={[ui.small, { color: colors.textSecondary }]}>{coverage.missingArabic} empty Arabic records in the source are excluded from the available count. Publisher numbering is kept.</Text>}
+    </View>
+    {chaptersVisible ? <FlatList data={chapters} keyExtractor={item => String(item.id)} contentContainerStyle={[ui.page, { paddingBottom: 110 + insets.bottom }]}
+      renderItem={({ item }) => <TouchableOpacity accessibilityRole="button" onPress={() => { setChaptersVisible(false); move(Math.ceil(item.start / PAGE_SIZE), (item.start - 1) % PAGE_SIZE); }} style={[ui.route, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}><Text style={[ui.body, { color: colors.textPrimary }]}>{item.id}. {item.title}</Text></TouchableOpacity>} />
+    : loading ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}><ActivityIndicator color={colors.primary} /><Text style={[ui.body, { color: colors.textSecondary }]}>Loading real Hadith text…</Text></View>
+    : error ? <View style={[ui.page, { gap: 16 }]}><Text accessibilityRole="alert" style={[ui.body, { color: colors.textSecondary }]}>{error}</Text><TouchableOpacity accessibilityRole="button" onPress={() => void load(page, numberSearch && numeric ? Number(normalized) : undefined)} style={ui.primaryButton}><Text style={[ui.rowTitle, { color: colors.primary }]}>Try again</Text></TouchableOpacity></View>
+    : <FlatList ref={list} data={displayed} keyExtractor={(item, i) => item.number + '-' + i} contentContainerStyle={[ui.page, { paddingBottom: 30 }]} showsVerticalScrollIndicator={false}
+      ListHeaderComponent={warning ? <Text accessibilityRole="alert" style={[ui.caption, { color: colors.textSecondary }]}>{warning}</Text> : null}
+      ListEmptyComponent={<Text style={[ui.body, { color: colors.textSecondary }]}>No results on this page. Try another page or a Hadith number.</Text>}
+      renderItem={({ item }) => <Card>
+        <View style={ui.row}><Text style={[ui.rowTitle, { color: colors.primary }]}>Hadith {item.number}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={'Share Hadith ' + item.number} onPress={() => void Share.share({ message: [item.arab, item[language], book.name + ' · Hadith ' + item.number].filter(Boolean).join('\n\n') }).catch(() => setWarning('Sharing is not supported here. You can select and copy the text.'))} style={ui.back}><Share2 size={18} color={colors.textSecondary} /></TouchableOpacity></View>
+        {!!item.section && <Text style={[ui.caption, { color: colors.textSecondary }]}>{item.section}</Text>}
+        <Text selectable lang="ar" style={[ui.arabic, { color: colors.textPrimary }]}>{item.arab}</Text>
+        <View style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 14, gap: 6 }}>
+          <Text style={[ui.small, { color: colors.primary }]}>{language === 'english' ? 'ENGLISH · HADITH API EDITION' : 'اردو · HADITH API EDITION'}</Text>
+          <Text selectable lang={language === 'urdu' ? 'ur' : 'en'} style={[language === 'urdu' ? ui.urdu : ui.body, { color: colors.textPrimary }]}>{item[language] || 'This translation is not supplied for this narration.'}</Text>
+        </View>
+        {!!item.grades?.length && <Text style={[ui.caption, { color: colors.textSecondary }]}>Publisher grades: {item.grades.map(g => g.name + ': ' + g.grade).join(' · ')}</Text>}
+        <Text style={[ui.small, { color: colors.textSecondary }]}>{book.name} · Hadith {item.number}. Numbering may differ between editions.</Text>
+      </Card>} />}
+    {!chaptersVisible && !loading && <View style={[ui.row, { padding: 10, paddingBottom: 8, backgroundColor: colors.cardBackground, borderTopWidth: 1, borderColor: colors.border }]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Previous Hadith page" disabled={page <= 1 || numberSearch} onPress={() => move(page - 1)} style={[ui.back, { opacity: page <= 1 || numberSearch ? .3 : 1 }]}><ChevronLeft size={23} color={colors.primary} /></TouchableOpacity>
+      {numberSearch ? <TouchableOpacity accessibilityRole="button" onPress={() => move(page)} style={ui.primaryButton}><Text style={[ui.caption, { color: colors.primary }]}>Back to page {page}</Text></TouchableOpacity> : <Text style={[ui.caption, { color: colors.textSecondary }]}>Page {page} / {totalPages}</Text>}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Next Hadith page" disabled={page >= totalPages || numberSearch} onPress={() => move(page + 1)} style={[ui.back, { opacity: page >= totalPages || numberSearch ? .3 : 1 }]}><ChevronRight size={23} color={colors.primary} /></TouchableOpacity>
+    </View>}
+  </View>;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 50, paddingBottom: 14, paddingHorizontal: 16, borderBottomWidth: 1, gap: 12 },
-  backBtn: { padding: 4 },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700' },
-  headerSub: { fontSize: 12, marginTop: 2, fontWeight: '600' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', margin: 12, padding: 12, borderRadius: 14, borderWidth: 1, gap: 10 },
-  searchInput: { flex: 1, fontSize: 15, textAlign: 'right' },
-  infoBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, marginBottom: 8, padding: 8, borderRadius: 10, borderWidth: 1 },
-  infoBannerText: { fontSize: 12, fontWeight: '600' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32 },
-  loadingTxt: { fontSize: 15, marginTop: 4 },
-  errorTxt: { fontSize: 15, textAlign: 'center' },
-  retryBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, marginTop: 4 },
-  retryTxt: { fontSize: 14, fontWeight: '600' },
-  list: { padding: 12, gap: 14 },
-  hadithCard: { borderRadius: 14, padding: 16, borderWidth: 1, gap: 12 },
-  numBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  numText: { fontSize: 12, fontWeight: '700' },
-  arabicTxt: { fontSize: 20, lineHeight: 38, textAlign: 'right', writingDirection: 'rtl', fontWeight: '500' },
-  sourceTag: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  sourceTxt: { fontSize: 11, fontWeight: '600' },
-  pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderTopWidth: 1 },
-  pageBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8 },
-  disabled: { opacity: 0.4 },
-  pageBtnTxt: { fontSize: 14, fontWeight: '600' },
-  pageNum: { fontSize: 14 },
-});

@@ -1,0 +1,31 @@
+{
+  "records": 18265,
+  "bytes": 8178085,
+  "sha256": "505170f233ee5e49c202f65182bce1409b5a3ce5b7628d8cfa59ab4d2dd1a5a4",
+  "sources": {
+    "Quran": 6275,
+    "Hadith": 11969,
+    "Hisnul Muslim": 17,
+    "Fiqh us-Sunnah": 4
+  },
+  "duplicateIds": 0,
+  "duplicateTexts": 241,
+  "duplicateCitations": 11,
+  "missingFields": 0,
+  "words": {
+    "min": 3,
+    "median": 38,
+    "p95": 164,
+    "max": 2896
+  },
+  "collections": {
+    "Sahih al-Bukhari": 3087,
+    "Sahih Muslim": 2921,
+    "Jami at-Tirmidhi": 1951,
+    "Sunan Abi Dawud": 2006,
+    "Sunan Ibn Majah": 2001,
+    "Sunan an-Nasa'i": 3
+  },
+  "quranDistinctVerseCoordinates": 6223,
+  "quranCitationsWithoutCoordinates": 0
+}
