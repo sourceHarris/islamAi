@@ -52,7 +52,8 @@ install `backend/requirements.txt`, configure `backend/.env`, and run
 are required for login/chat. Complete Quran reading is bundled locally; external
 Hadith chapters, recitation and prayer schedules require network access.
 
-No clean-clone or separate-production-deployment verification has been performed
-yet. Local frontend checks, browser interactions, live API connectivity, and
+The committed source is checked in an isolated archive using the already
+installed dependencies. A clean dependency installation and separate production
+deployment have not been verified. Local frontend checks, browser interactions, live API connectivity, and
 Android bundle checks are recorded in `docs/HIDAYAH_2_AUTH.md` and
 `docs/FEATURE_AUDIT.md`.
