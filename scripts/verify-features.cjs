@@ -1,0 +1,103 @@
+const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),{spawn}=require('node:child_process');
+const root=path.resolve(process.env.EXPORT_ROOT || 'exports/hidayah-v2-web'),output=path.resolve(process.env.REVIEW_OUTPUT || 'exports/hidayah-v2-review');
+fs.mkdirSync(output,{recursive:true});
+const delay=ms=>new Promise(r=>setTimeout(r,ms)),Q=JSON.stringify,results=[],errors=[],networkFailures=[];
+const server=http.createServer((req,res)=>{
+  let file=path.resolve(root,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));
+  if(file!==root&&!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
+  if(!fs.existsSync(file)||fs.statSync(file).isDirectory())file=path.join(root,'index.html');
+  res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.ttf':'font/ttf','.png':'image/png'})[path.extname(file)]||'application/octet-stream');
+  fs.createReadStream(file).pipe(res);
+});
+(async()=>{
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const base='http://127.0.0.1:'+server.address().port;
+ const chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--disable-gpu','--no-first-run','--autoplay-policy=no-user-gesture-required','--remote-debugging-port=9441','--user-data-dir='+path.join(output,'chrome-profile'),'about:blank'],{windowsHide:true,stdio:'ignore'});
+ let ws,ev,capture;
+ try{
+  let tabs;for(let i=0;i<40;i++){try{tabs=await(await fetch('http://127.0.0.1:9441/json')).json();break;}catch{await delay(250);}}
+  if(!tabs)throw Error('Chrome did not start');
+  ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
+  await new Promise(r=>ws.addEventListener('open',r,{once:true}));
+  let id=0;const pending=new Map();
+  const send=(method,params={})=>new Promise((resolve,reject)=>{const key=++id;pending.set(key,{resolve,reject});ws.send(Q({id:key,method,params}));});
+  ws.addEventListener('message',event=>{const m=JSON.parse(event.data);
+   if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(Error(Q(m.error))):p.resolve(m.result);}
+   if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text);
+   if(m.method==='Network.loadingFailed'&&!m.params.canceled)networkFailures.push(m.params.errorText);
+   if(m.method==='Page.javascriptDialogOpening')void send('Page.handleJavaScriptDialog',{accept:true});
+  });
+  ev=async expression=>{const data=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(data.exceptionDetails)throw Error(data.exceptionDetails.exception?.description||data.exceptionDetails.text);return data.result?.value;};
+  const text=p=>'document.body.innerText.includes('+Q(p)+')';
+  const has=l=>'!!document.querySelector('+Q('[aria-label='+Q(l)+']')+')';
+  const until=async(expr,timeout=20000)=>{const start=Date.now();while(Date.now()-start<timeout){if(await ev(expr))return;await delay(200);}throw Error('Timed out: '+expr);};
+  const check=async(name,expr)=>{if(!await ev(expr))throw Error('FAILED: '+name);results.push({name,pass:true});console.log('PASS '+name);};
+  capture=async name=>{const i=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(output,name+'.png'),Buffer.from(i.data,'base64'));};
+  const go=async route=>{await send('Page.navigate',{url:base+route});await until("document.readyState==='complete' && !!document.querySelector('[role=\"button\"]')");await delay(400);};
+  const tap=async label=>{const selector=Q('[aria-label='+Q(label)+']');if(!await ev('(function(){const e=document.querySelector('+selector+');if(!e)return false;e.click();return true})()'))throw Error('Missing control '+label);await delay(200);};
+  const tapText=async(label,exact=false)=>{
+   const expr='(function(){const e=[...document.querySelectorAll(\'[role="button"],[role="tab"],[role="checkbox"],a\')].find(e=>'+(exact?'e.textContent.trim()==='+Q(label):'e.textContent.includes('+Q(label)+')')+');if(!e)return false;e.click();return true})()';
+   if(!await ev(expr))throw Error('Missing text control '+label);await delay(200);
+  };
+  const fill=async(selector,value)=>{const expr='(function(){const e=document.querySelector('+Q(selector)+');if(!e)return false;const p=e.tagName==="TEXTAREA"?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,"value").set.call(e,'+Q(value)+');e.dispatchEvent(new Event("input",{bubbles:true}));return true})()';if(!await ev(expr))throw Error('Missing input '+selector);await delay(150);};
+  const session={name:'Huzaifa',email:'feature-audit@example.test',registration_number:'anonymous'};
+  await send('Page.enable');await send('Runtime.enable');await send('Network.enable');
+  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  const run=String(Date.now());
+  await send('Page.addScriptToEvaluateOnNewDocument',{source:"if(localStorage.getItem('feature_audit_run')!=="+Q(run)+"){localStorage.clear();localStorage.setItem('feature_audit_run',"+Q(run)+");localStorage.setItem('hidayah_user',"+Q(Q(session))+");localStorage.setItem('hidayah_theme_preference','light');}const NativeAudio=window.Audio;window.Audio=function(...args){const media=new NativeAudio(...args);(window.__auditAudio||=[]).push(media);return media;};window.Audio.prototype=NativeAudio.prototype;Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{window.__lastShare=data;}});window.open=url=>{window.__openedURL=url;return null;};"});
+  await go('/');await until(text('Assalamu Alaikum, Huzaifa'));
+  await check('Home and practice routes render',text('Daily Prayers')+'&&'+text('Digital Tasbih')+'&&'+text('Qibla Compass')+'&&'+text('Dua Book')+'&&'+text('Hadith Library'));
+  await tap('Configure prayer times');await fill('[aria-label="Prayer city"]','Karachi');await fill('[aria-label="Prayer country"]','Pakistan');await tapText('Load prayer times',true);await until(text('Asia/Karachi'),45000);
+  await check('Real prayer schedule with timezone and method',text('Asia/Karachi')+'&&!'+text('--:--'));await capture('home-prayer-times-light');
+  await go('/');await until(text('Asia/Karachi'));await check('Prayer settings persist after reload',text('Asia/Karachi'));
+  await tapText('Digital Tasbih');await until(text('Choose your dhikr'));await tap('Count Subhan Allah. Current count 0. Target 33.');await until(has('Count Subhan Allah. Current count 1. Target 33.'));
+  await check('Tasbih increments',has('Count Subhan Allah. Current count 1. Target 33.'));
+  await go('/dhikr');await until(has('Count Subhan Allah. Current count 1. Target 33.'));await check('Tasbih count persists after reload',text('1 remembrances saved on this device'));
+  await tapText('Reset count',true);await until(has('Count Subhan Allah. Current count 0. Target 33.'));await check('Reset keeps lifetime total',text('1 remembrances saved on this device'));
+  await tapText('Alhamdulillah');await check('Dhikr selection works',has('Count Alhamdulillah. Current count 0. Target 33.'));
+  await go('/dua');await until(text("Add New Du'a"));await tapText("Add New Du'a",true);await fill('[placeholder="e.g., For My Health"]','Audit personal prayer');await fill('[placeholder="Write your du\'a here..."]','A prayer created only in the isolated test browser.');await tapText('Save',true);await until(text('Audit personal prayer'));
+  await go('/dua');await until(text('Audit personal prayer'));await check('Dua creation persists',text('Audit personal prayer'));
+  await tap('Edit Audit personal prayer');await fill('[placeholder="e.g., For My Health"]','Edited audit prayer');await tapText('Save',true);await until(text('Edited audit prayer'));await check('Dua editing works',text('Edited audit prayer'));
+  await tap('Delete Edited audit prayer');await until('!'+text('Edited audit prayer'));await check('Dua confirmed deletion works',text("No du'as yet"));
+  await go('/checklist');await until(text("Save today's practice"));await tapText('Fajr');await fill('textarea','Audit reflection');await tapText("Save today's practice",true);
+  await go('/');await until(text('1 of 5 completed'));await check('Checklist completion appears on Home',text('1 of 5 completed'));
+  await go('/tracker');await until(text('Audit reflection'));await check('Reflection appears in tracker',text('Audit reflection'));
+  await ev('document.querySelector(\'[aria-label*="day"]\')?.click()');await tapText('Edit Reflection');await until("location.pathname==='/checklist' && location.search.includes('date=')");await check('Tracker edit opens selected date',"location.search.includes('date=')&&!"+text("Save today's practice"));
+  await go('/quran');await until(text('Surah (114)'));await check('Complete 114-surah catalogue',text('Surah (114)'));
+  await fill('[aria-label="Search the library"]','114');await tapText('An-Naas');await until(text('AYAH 114:1'));await check('Quran Arabic English Urdu render',text('SAHIH INTERNATIONAL')+'&&'+text('FATEH MUHAMMAD JALANDHRY'));
+  await tap('Save Surah');await check('Surah bookmark saved',"JSON.parse(localStorage.getItem('hidayah_saved_surahs')).includes(114)");
+  await tap('Toggle Urdu translation');await check('Urdu toggle works','!'+text('FATEH MUHAMMAD JALANDHRY'));await tap('Toggle Urdu translation');
+  await ev("window.__before=parseFloat(getComputedStyle(document.querySelector('[lang=\"ar\"]')).fontSize)");await tap('Increase Arabic text size');await check('Arabic text size changes',"parseFloat(getComputedStyle(document.querySelector('[lang=\"ar\"]')).fontSize)>window.__before");
+  await tap('Play recitation');await until(has('Pause recitation'),30000);await until('window.__auditAudio?.at(-1)?.currentTime>0.5',30000);await check('Real recitation starts and playback time advances','window.__auditAudio.at(-1).duration>0 && !window.__auditAudio.at(-1).paused');await capture('quran-audio-light');
+  await tap('Pause recitation');await check('Recitation pauses',has('Play recitation'));await tap('Next recitation verse');await until(text('Ayah 2/6'));await until(has('Pause recitation'));await tap('Pause recitation');await check('Next audio verse works',text('Ayah 2/6'));
+  await tap('Change reciter');await check('Reciter changes and playback stops',text('Abdul Basit')+'&&'+has('Play recitation'));
+  await tap('Share Ayah 1');await check('Ayah share has real reference',"window.__lastShare.text.includes('Quran 114:1')");
+  await tap('Read Tafsir for Ayah 1 on Quran.com');await check('Tafsir points to selected verse',"window.__openedURL.includes('/114/1/tafsirs/')");
+  await go('/quran');await until(text('Surah (114)'));await tapText('Saved (1)');await check('Saved surah library works',text('An-Naas'));await tapText('Recent',true);await check('Recent library works',text('An-Naas'));
+  await go('/');await tapText('Hadith Library');await until(text('Sahih al Bukhari'));await check('Home links to Hadith books',text('Sahih al Bukhari')+'&&'+text('Sunan Abu Dawud'));await capture('hadith-library-light');
+  await tapText('Sahih al Bukhari');await until(text('Hadith 1'),45000);await check('Hadith Arabic and English load',text('ENGLISH · HADITH API EDITION')+'&&!'+text('Loading real Hadith text'));
+  await tapText('اردو',true);await until(text('اردو · HADITH API EDITION'));await check('Hadith Urdu works','!'+text('This translation is not supplied'));await capture('hadith-reader-urdu-light');
+  await tapText('English',true);await tap('Next Hadith page');await until(text('Hadith 21'),45000);await check('Hadith pagination works',text('Hadith 21'));await check('Hadith pagination is visible and tappable above tab bar','(function(){const e=document.querySelector(\'[aria-label="Next Hadith page"]\');const r=e.getBoundingClientRect();return r.bottom<innerHeight-78 && document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest(\'[aria-label="Next Hadith page"]\')===e;})()');
+  await fill('[aria-label="Search Hadith number or this page"]','100');await tap('Find Hadith number');await until(text('Hadith 100'),45000);await check('Numbered Hadith search works',text('Hadith 100'));
+  await tap('Clear Hadith search');await until(text('Hadith 21'));await fill('[aria-label="Search Hadith number or this page"]','999999');await tap('Find Hadith number');await until(text('That Hadith number is not in this edition.'));await check('Invalid Hadith number reports error',text('That Hadith number is not in this edition.'));
+  await tap('Clear Hadith search');await until(text('Hadith 21'));await tapText('Browse chapters');await until(text('Revelation'));await check('Hadith chapter index works',text('Revelation'));await tapText('1. Revelation');await until(text('Hadith 1'));
+  await tap('Share Hadith 1');await check('Hadith share includes book and number',"window.__lastShare.text.includes('Hadith 1')&&window.__lastShare.text.includes('Sahih al Bukhari')");
+  await tapText('Browse chapters');await tapText("2. Belief");await until(text("Hadith 8"));await check('Chapter jump starts at its first narration',"document.body.innerText.match(/Hadith\\s+\\d+/)?.[0]===\"Hadith 8\"");
+  await go('/chatbot');await fill('[aria-label="Your question"]','What does the Quran say about patience?');await tap('Send message');await until(has('Save reply'),100000);await check('Real backend chat answer renders',text('Hidayah Companion'));await tap('Save reply');await until(text('Saved on this device'));await tap('Open saved replies');await until(has('Remove saved reply'));await check('Saved reply appears',has('Remove saved reply'));
+  await go('/saved-replies');await until(has('Remove saved reply'));await check('Saved reply persists after reload',has('Remove saved reply'));await check('Saved reply Markdown is rendered rather than shown as syntax','!document.body.innerText.includes("**Answer")');await capture('saved-ai-reply-light');await tap('Remove saved reply');await until(text('Keep a reflection close'));await check('Saved reply removal works',text('Keep a reflection close'));
+  await go('/qibla');await send('Browser.grantPermissions',{origin:base,permissions:['geolocation']});await send('Emulation.setGeolocationOverride',{latitude:24.8607,longitude:67.0011,accuracy:10});await tapText('Use my location',true);await until(text('Clockwise from true north'),20000);await check('Qibla bearing from supplied test coordinates',text('Clockwise from true north'));await capture('qibla-light');
+  await go('/swipecards');await check('Gift Ayah matches Quran source',text('Quran 13:28'));await tapText('Next',true);await check('Gift Ayah navigation works',text('Quran 14:7'));
+  await go('/profile');await check('Profile has 2.0 branding and no appearance modes',text('Hidayah 2.0')+'&&!'+has('Dark theme')+'&&!'+has('System theme'));
+  await ev("localStorage.setItem('hidayah_theme_preference','dark')");
+  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'dark'}]});
+  await go('/');await until(text('Assalamu Alaikum, Huzaifa'));await check('Dark OS and legacy preference still render light mode',"getComputedStyle(document.documentElement).colorScheme==='light'");await capture('home-light-under-dark-os');
+  await go('/quran?tab=hadith');await until(text('Sahih al Bukhari'));await capture('hadith-library-light');await tapText('Forty Hadith of an-Nawawi');await until(text('Hadith 1'),45000);await capture('hadith-reader-light');await check('Hadith reader remains light under dark OS',text('Hadith 1')+"&&getComputedStyle(document.documentElement).colorScheme==='light'");
+  for(const width of [320,390,1024]){await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:width<600});await check('No Hadith horizontal overflow at '+width,'document.documentElement.scrollWidth<=innerWidth+1');}
+  await go('/profile');
+  await tapText('Sign out',true);await until("location.pathname==='/login'");await check('Sign-out keeps saved practice',"!localStorage.getItem('hidayah_user')&&!!localStorage.getItem('@spiritual_tracking_data')");
+  await ev('[...document.querySelectorAll(\'[role="button"]\')].filter(e=>e.textContent.trim()==="Login").at(-1).click()');await check('Login validates required credentials',text('Please enter your email and password.'));
+  await fill('[aria-label="Email"]','audit-nonexistent@example.com');await fill('[aria-label="Password"]','connection-check-only');await ev('[...document.querySelectorAll(\'[role="button"]\')].filter(e=>e.textContent.trim()==="Login").at(-1).click()');await until(text('Invalid email or password'),20000);await check('Login reaches real backend',text('Invalid email or password'));await capture('login-server-response');
+  await check('No unhandled browser errors',Q(errors.length===0));
+ }catch(e){results.push({name:'Audit interrupted',pass:false,error:e.message});if(ev)try{fs.writeFileSync(path.join(output,'failure-text.txt'),await ev('document.body.innerText'));await capture('failure');}catch{}console.error(e);process.exitCode=1;
+ }finally{fs.writeFileSync(path.join(output,'results.json'),Q({testedAt:new Date().toISOString(),results,errors,networkFailures},null,2));console.log(results.filter(r=>r.pass).length+' browser checks passed');ws?.close();chrome.kill();server.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;server.close();});

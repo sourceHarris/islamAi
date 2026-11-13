@@ -1,0 +1,137 @@
+{
+  "testedAt": "2026-11-13T10:16:30.410Z",
+  "results": [
+    {
+      "check": "All 114 surahs / 6236 Arabic, Urdu, English verses contiguous and complete",
+      "pass": true
+    },
+    {
+      "check": "Quran works offline",
+      "pass": true
+    },
+    {
+      "check": "Sunan Abu Dawud first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Sunan Abu Dawud last narration Arabic + English",
+      "pass": true,
+      "number": 5274
+    },
+    {
+      "check": "Sahih al Bukhari first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Sahih al Bukhari last narration Arabic + English",
+      "pass": true,
+      "number": 7563
+    },
+    {
+      "check": "Sunan Ibn Majah first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Sunan Ibn Majah last narration Arabic + English",
+      "pass": true,
+      "number": 4341
+    },
+    {
+      "check": "Muwatta Malik first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Muwatta Malik last narration Arabic + English",
+      "pass": true,
+      "number": 1858
+    },
+    {
+      "check": "Sahih Muslim first narration Arabic + English",
+      "pass": true,
+      "number": 3
+    },
+    {
+      "check": "Sahih Muslim last narration Arabic + English",
+      "pass": true,
+      "number": 7563
+    },
+    {
+      "check": "Sunan an Nasai first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Sunan an Nasai last narration Arabic + English",
+      "pass": true,
+      "number": 5758
+    },
+    {
+      "check": "Jami At Tirmidhi first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Jami At Tirmidhi last narration Arabic + English",
+      "pass": true,
+      "number": 3956
+    },
+    {
+      "check": "Forty Hadith of an-Nawawi first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Forty Hadith of an-Nawawi last narration Arabic + English",
+      "pass": true,
+      "number": 42
+    },
+    {
+      "check": "Forty Hadith Qudsi first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Forty Hadith Qudsi last narration Arabic + English",
+      "pass": true,
+      "number": 40
+    },
+    {
+      "check": "Forty Hadith of Shah Waliullah Dehlawi first narration Arabic + English",
+      "pass": true,
+      "number": 1
+    },
+    {
+      "check": "Forty Hadith of Shah Waliullah Dehlawi last narration Arabic + English",
+      "pass": true,
+      "number": 40
+    },
+    {
+      "check": "Bukhari page across chapter boundary with Urdu",
+      "pass": true
+    },
+    {
+      "check": "Exact numbered lookup",
+      "pass": true
+    },
+    {
+      "check": "Previously read Hadith chapters work offline",
+      "pass": true
+    },
+    {
+      "check": "Recent Hadith chapters persist for offline reading after a service reload",
+      "pass": true
+    },
+    {
+      "check": "Hadith cache stays within budget without removing personal practice data",
+      "pass": true
+    },
+    {
+      "check": "Hadith cache rejects keys belonging to user data",
+      "pass": true
+    }
+  ]
+}

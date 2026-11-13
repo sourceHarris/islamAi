@@ -47,17 +47,23 @@ export const getDefaultDhikr = (): ChecklistItem[] => [
 export const loadAllData = async (): Promise<Record<string, DailyChecklist>> => {
   try {
     const jsonValue = await AsyncStorage.getItem(TRACKING_KEY);
-    return jsonValue != null ? JSON.parse(jsonValue) : {};
+    const data = jsonValue != null ? JSON.parse(jsonValue) : {};
+    if (!data || Array.isArray(data) || typeof data !== 'object') throw new Error('Invalid saved practice history');
+    return data;
   } catch (e) {
     console.error('Error loading tracking data', e);
-    return {};
+    throw new Error('Saved practice history could not be read. Existing data has been kept.');
   }
 };
 
 // Load today's checklist
 export const loadTodayChecklist = async (): Promise<DailyChecklist> => {
+  return loadChecklistForDate(getTodayDateString());
+};
+
+export const loadChecklistForDate = async (date: string): Promise<DailyChecklist> => {
   const allData = await loadAllData();
-  const today = getTodayDateString();
+  const today = date;
   
   if (allData[today]) {
     return allData[today];
@@ -81,6 +87,7 @@ export const saveTodayChecklist = async (checklist: DailyChecklist) => {
     await AsyncStorage.setItem(TRACKING_KEY, JSON.stringify(allData));
   } catch (e) {
     console.error('Error saving tracking data', e);
+    throw new Error('Practice could not be saved. Please try again.');
   }
 };
 
@@ -93,7 +100,7 @@ export const calculateStreaks = async () => {
   let quranStreak = 0;
   
   const today = getTodayDateString();
-  let checkDate = new Date(today);
+  let checkDate = new Date(today + 'T12:00:00');
   
   // Calculate prayer streak (all 5 prayers must be done)
   for (let i = 0; i < 365; i++) {
@@ -118,7 +125,7 @@ export const calculateStreaks = async () => {
     checkDate.setDate(checkDate.getDate() - 1);
   }
   
-  checkDate = new Date(today);
+  checkDate = new Date(today + 'T12:00:00');
   // Calculate Quran streak
   for (let i = 0; i < 365; i++) {
     const dStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
@@ -145,7 +152,10 @@ export const calculateStreaks = async () => {
 
 export const getWeeklyInsights = async () => {
   const allData = await loadAllData();
-  const dates = Object.keys(allData).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).slice(0, 7);
+  const first = new Date(); first.setDate(first.getDate() - 6);
+  const start = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-${String(first.getDate()).padStart(2, '0')}`;
+  const today = getTodayDateString();
+  const dates = Object.keys(allData).filter(date => date >= start && date <= today);
   
   let prayersDone = 0;
   dates.forEach(d => {
@@ -154,7 +164,7 @@ export const getWeeklyInsights = async () => {
   
   return {
     prayersCompleted: prayersDone,
-    totalPrayers: dates.length * 5 || 35,
+    totalPrayers: 35,
     daysActive: dates.length,
   };
 };
@@ -186,7 +196,10 @@ export const getHeatmapData = async () => {
 
 export const getPrayerAnalytics = async () => {
   const allData = await loadAllData();
-  const dates = Object.keys(allData).slice(-30);
+  const first = new Date(); first.setDate(first.getDate() - 29);
+  const start = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-${String(first.getDate()).padStart(2, '0')}`;
+  const today = getTodayDateString();
+  const dates = Object.keys(allData).filter(date => date >= start && date <= today).sort();
   
   const counts: Record<string, number> = { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 };
   

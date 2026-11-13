@@ -7,12 +7,14 @@ Sub-systems
 -----------
 1. FAISS index — built at startup from dataset.json using HuggingFace embeddings.
 2. Emotion Detection — lightweight HuggingFace pipeline (j-hartmann/emotion-english-distilroberta-base).
-3. /chat endpoint — emotion-aware RAG → LangChain → ChatOpenAI (temperature=0.0).
+3. /chat endpoint — emotion-aware RAG → LangChain → Groq or Gemini (temperature=0.0).
 4. /sync_checklist endpoint — upserts a day's checklist from React Native frontend.
 5. CORS — all origins allowed for local emulator compatibility.
 
 Required environment variables (place in backend/.env):
-    OPENAI_API_KEY      — your OpenAI API key
+    GROQ_API_KEY        — your Groq API key (primary provider)
+    GROQ_MODEL          — optional model override (default: openai/gpt-oss-120b)
+    GOOGLE_API_KEY      — alternative provider when the Groq key is absent
     DATABASE_URL        — postgresql://user:password@localhost:5432/hidayah_db
 """
 
@@ -42,6 +44,7 @@ from sqlalchemy.orm import Session
 from transformers import pipeline
 
 import faiss
+from rag_policy import is_pure_greeting, select_route, resolve_source_markers
 
 from database import MoodLog, Milestone, PrivateDua, PrayerStreak, QuranStreak, SpiritualChecklist, User, create_tables, get_db
 
@@ -59,10 +62,11 @@ logger = logging.getLogger("hidayah")
 # Env
 # ---------------------------------------------------------------------------
 
-load_dotenv(override=True)  # override=True ensures .env beats any system env vars (e.g. expired GOOGLE_API_KEY)
+load_dotenv(Path(__file__).parent / ".env", override=True)
 
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "").strip()
-GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()  # primary LLM key (Groq Llama 3.3 70B)
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_MODEL: str = os.getenv("GROQ_MODEL", "").strip() or "openai/gpt-oss-120b"
 HADITH_API_KEY: str = os.getenv("HADITH_API_KEY", "").strip()  # optional key for hadithapi.com
 DATASET_PATH: Path = Path(__file__).parent / "dataset.json"
 
@@ -71,9 +75,9 @@ if HADITH_API_KEY:
 else:
     logger.info("HADITH_API_KEY is not set. Hadith search will fall back to local database.")
 
-if not GOOGLE_API_KEY:
+if not GOOGLE_API_KEY and not GROQ_API_KEY:
     logger.warning(
-        "GOOGLE_API_KEY is not set. The /chat endpoint will raise errors."
+        "No LLM API key is set. Configure GROQ_API_KEY or GOOGLE_API_KEY."
     )
 
 # ---------------------------------------------------------------------------
@@ -209,7 +213,7 @@ def detect_emotion(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# LangChain / OpenAI
+# LangChain / hosted generation
 # ---------------------------------------------------------------------------
 
 # ── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
@@ -219,10 +223,12 @@ Your ONE purpose: give accurate, evidence-based Islamic answers sourced ONLY fro
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STRICT SOURCE RULES (NON-NEGOTIABLE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. ZERO HALLUCINATION: You are STRICTLY FORBIDDEN from inventing, guessing, or paraphrasing any Surah name, Ayah number, Hadith book name, or Hadith number. Every citation MUST appear VERBATIM from the context block below.
+1. SOURCE IDENTIFIERS: Cite evidence ONLY using its provided marker, e.g. [S1] or [S2]. The server inserts the canonical citation. Never spell out or invent a Surah name, Ayah number, book name, or Hadith number yourself.
 2. VERBATIM QUOTES: When you cite a source, copy the exact Arabic-translated text from the context. Never abbreviate or rephrase the sacred text.
 3. RELEVANCE CHECK: Before citing, ask yourself — is this verse/hadith directly about the user's question? If the database does not contain the answer, do NOT guess based on general principles. Simply state: 'I don't have the specific ruling for this in my current knowledge base, please consult a scholar.'
 4. NO OUTSIDE MEMORY: Even if you know a relevant Ayah or Hadith from your training data, you MUST NOT cite it unless it is present in the context block.
+5. PERSONAL PLANS ARE NOT GREETINGS: Address the meaning of a user's plan or confession. Never automatically praise, congratulate, endorse or encourage an unknown action. If a word is ambiguous or misspelled, ask what they mean; when a likely reading concerns a serious religious matter, explain that interpretation conditionally and use only directly relevant retrieved evidence. For example, 'zinnah' may mean 'zina'; do not treat it as a positive outing. Be compassionate without shaming or assuming facts.
+6. LIMIT INFERENCE: Prefer directly relevant, explicit evidence over indirect passages. Do not turn a specific passage about a circumstance, marriage or punishment into an unconditional personal ruling. Do not invent exceptions, penalties or eligibility rules. When a term is uncertain, start with 'If you mean ...' or ask a clarification question.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EMOTION-AWARE OPENING
@@ -237,9 +243,10 @@ MANDATORY RESPONSE STRUCTURE
 **Answer:** [2-4 sentence direct answer to the question]
 
 **Evidence from Quran & Sunnah:**
-• **[Exact Citation from context]:** "[Verbatim text from context]"
-• **[Exact Citation from context]:** "[Verbatim text from context]"
+• **[S1]:** "[Verbatim text from the most directly relevant source]"
 (Only include citations that exist in the context block)
+Use ONE most directly relevant source by default. Add another only when needed for a different explicit part of the question. Never pad with tangential evidence. Do not discuss marriage eligibility, punishments, or other legal consequences unless the user explicitly asks about that topic. Answer only the concern actually raised.
+If you need clarification, ask a concise question instead of forcing the full response structure or quoting unrelated evidence.
 
 **Application:** [2-3 sentences explaining how this evidence answers the question in practice]
 
@@ -284,12 +291,12 @@ _prompt_template = ChatPromptTemplate.from_messages(
 )
 
 _INTENT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", "Classify the intent of the user message into exactly ONE of these categories: Chit-Chat, Emotional, or Fiqh/Knowledge. Output ONLY the category name."),
+    ("system", "Classify as Emotional or Fiqh/Knowledge. Personal plans, confessions, religious conduct, misspellings and questions are substantive, even without a question mark. Output ONLY the category name."),
     ("human", "{user_message}")
 ])
 
 _CHITCHAT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", "You are Hidayah. Reply warmly to the user's greeting. Do not provide religious rulings."),
+    ("system", "You are Hidayah, an Islamic spiritual companion. Reply briefly to a greeting with a respectful greeting and ask how you can help with Islamic guidance. Do not comment on or approve any plans or actions."),
     ("human", "{user_message}")
 ])
 
@@ -306,12 +313,13 @@ _GEMINI_SAFETY_SETTINGS = {
 def _get_llm():
     """Returns the configured LLM instance."""
     if GROQ_API_KEY:
-        logger.info("Using Groq Llama 3.3 70B as LLM.")
+        logger.info("Using Groq model %s as LLM.", GROQ_MODEL)
         return ChatGroq(
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             temperature=0.0,
             max_tokens=1500,
             api_key=GROQ_API_KEY,
+            reasoning_effort="low" if GROQ_MODEL.startswith("openai/gpt-oss-") else None,
         )
     elif GOOGLE_API_KEY and len(GOOGLE_API_KEY) > 20:
         logger.info("Groq key absent — using Google Gemini 1.5 Flash as fallback LLM.")
@@ -342,11 +350,13 @@ def _build_chitchat_chain():
 
 _KEYWORD_PROMPT = ChatPromptTemplate.from_messages([
     ("system", (
-        "You are an Islamic database search assistant. Your task is to extract EXACTLY ONE key search word "
-        "(in English, e.g. 'patience', 'purification', 'fasting', 'parents', 'charity', 'forgiveness') "
-        "from the user's question that would be most effective for a database keyword search. "
-        "Do not include any introductory text, pleasantries, punctuation, quotes, or markdown. "
-        "Output ONLY the single search word. If there are multiple potential keywords, choose the most central one."
+        'Create a search plan for an Islamic text database. Output ONLY JSON with two string keys: '
+        '"query" (a concise English semantic search query) and "keyword" (one English word for lexical search). '
+        'Translate non-English input and common Roman Urdu/misspellings without adding facts about the user. '
+        'Preserve the user\'s question or concern, not greetings or incidental words. '
+        'For zina/zinnah/zinaah, query "avoiding unlawful sexual intercourse fornication adultery" '
+        'and keyword "fornication". For namaz use a query about prayer. '
+        'Do not answer the question, invent a verse reference, or output markdown.'
     )),
     ("human", "{user_message}")
 ])
@@ -535,6 +545,7 @@ class ChatResponse(BaseModel):
     reply: str
     detected_emotion: str
     sources: list[dict[str, str]]   # citation + source for frontend display
+    retrieval: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChecklistPayload(BaseModel):
@@ -685,10 +696,10 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
     """
     Full pipeline:
     1. Detect emotion from the user's message (HuggingFace).
-    2. Retrieve top-3 relevant Quran/Hadith chunks from FAISS.
+    2. Retrieve top-5 relevant chunks from FAISS and enrich through external search.
     3. Inject emotion + context into the guardrailed LangChain prompt.
-    4. Call Groq Llama 3 (temperature=0.0) and return the response.
-    5. Log the interaction to user_moods table for weekly analytics.
+    4. Call the configured LLM (temperature=0.0) and return the response.
+    5. Log the interaction to mood_logs for known users.
     """
     # ── Step 1: Intent classification & Emotion detection ─────────────────────
     detected_emotion: str = detect_emotion(request.message)
@@ -700,16 +711,19 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
             detail="No LLM API key configured. Set GOOGLE_API_KEY or GROQ_API_KEY in backend/.env.",
         )
 
-    try:
-        intent_chain = _build_intent_chain()
-        intent = intent_chain.invoke({"user_message": request.message}).strip()
-    except Exception as exc:
-        logger.warning("Intent classification failed: %s", exc)
-        intent = "Fiqh/Knowledge"
+    predicted_intent = "Fiqh/Knowledge"
+    if not is_pure_greeting(request.message):
+        try:
+            predicted_intent = _build_intent_chain().invoke({"user_message": request.message}).strip()
+        except Exception as exc:
+            logger.warning("Intent classification failed: %s", exc)
+    intent = select_route(request.message, predicted_intent)
     
     logger.info("User intent classified as: %s", intent)
 
     retrieved_chunks = []
+    retrieval_info = {"route": intent, "used": False, "local_matches": 0,
+                      "external_matches": 0, "context_count": 0}
     
     # ── Step 2: Route based on intent ─────────────────────────────────────────
     if "chit-chat" in intent.lower() or "chitchat" in intent.lower():
@@ -725,19 +739,25 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
             ) from exc
     else:
         # ── Hybrid retrieval for Fiqh/Knowledge and Emotional ─────────────────
-        # 1. Fetch from local FAISS
-        retrieved_chunks = _retrieve_context(request.message, top_k=5)
-        
-        # 2. Extract search keyword for external APIs
+        # Extract an English topic before retrieval, so misspellings and Roman
+        # Urdu are not searched only in their original form.
         search_keyword = ""
+        retrieval_query = request.message
         try:
             keyword_chain = _build_keyword_chain()
-            search_keyword = keyword_chain.invoke({"user_message": request.message}).strip()
-            # Clean up keyword (keep alphanumeric and spaces)
-            search_keyword = "".join(c for c in search_keyword if c.isalnum() or c.isspace()).strip()
+            plan_text = keyword_chain.invoke({"user_message": request.message}).strip()
+            plan = json.loads(plan_text)
+            if isinstance(plan.get("query"), str) and plan["query"].strip():
+                retrieval_query = plan["query"].strip()[:500]
+            keyword = plan.get("keyword", "")
+            if isinstance(keyword, str):
+                search_keyword = "".join(c for c in keyword if c.isalpha())[:50]
             logger.info("Extracted search keyword for external APIs: '%s'", search_keyword)
         except Exception as exc:
             logger.warning("Keyword extraction failed: %s", exc)
+
+        retrieved_chunks = _retrieve_context(retrieval_query, top_k=5)
+        retrieval_info.update(used=True, local_matches=len(retrieved_chunks))
             
         # 3. Query external APIs if we have a valid keyword
         external_chunks = []
@@ -762,11 +782,12 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
                 combined_chunks.append(chunk)
                 
         retrieved_chunks = combined_chunks[:8]
+        retrieval_info.update(external_matches=len(external_chunks), context_count=len(retrieved_chunks))
 
         if retrieved_chunks:
             context_block = "\n\n".join(
-                f"[{chunk['citation']}]\n{chunk['text']}"
-                for chunk in retrieved_chunks
+                f"[S{i}] {chunk['citation']}\n{chunk['text']}"
+                for i, chunk in enumerate(retrieved_chunks, start=1)
             )
         else:
             context_block = "No relevant context found in the database."
@@ -775,14 +796,21 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
 
         # ── LangChain → LLM ───────────────────────────────────────────────────
         try:
-            chain = _build_langchain_chain()
-            llm_reply: str = chain.invoke(
-                {
-                    "detected_emotion": detected_emotion,
-                    "context": context_block,
-                    "user_message": request.message,
-                }
-            )
+            if not retrieved_chunks:
+                llm_reply = (
+                    "I couldn't find directly relevant evidence in my Islamic knowledge base for that message. "
+                    "Could you clarify what you mean or what guidance you need? "
+                    "For a personal religious ruling, please consult a qualified scholar."
+                )
+            else:
+                chain = _build_langchain_chain()
+                llm_reply = chain.invoke(
+                    {
+                        "detected_emotion": detected_emotion,
+                        "context": context_block,
+                        "user_message": request.message,
+                    }
+                )
             # Guard against empty string responses
             if not llm_reply or not llm_reply.strip():
                 logger.warning("LLM returned an empty response — using fallback message.")
@@ -828,12 +856,7 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         logger.warning("Mood logging failed (non-fatal): %s", exc)
 
     # ── Build sources list — only include sources the LLM actually cited ──────
-    reply_lower = llm_reply.lower()
-    sources = [
-        {"citation": chunk["citation"], "source": chunk["source"]}
-        for chunk in retrieved_chunks
-        if chunk["citation"].lower() in reply_lower
-    ]
+    llm_reply, sources = resolve_source_markers(llm_reply, retrieved_chunks)
     logger.info(
         "Sources filtered: %d used out of %d retrieved.",
         len(sources), len(retrieved_chunks)
@@ -843,6 +866,7 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
         reply=llm_reply,
         detected_emotion=detected_emotion,
         sources=sources,
+        retrieval=retrieval_info,
     )
 
 

@@ -1,55 +1,82 @@
+import { AppText as Text } from '../components/Typography';
+import { AppBackdrop } from '../components/Glass';
+import { useReducedMotion } from 'react-native-reanimated';
+import ScreenHeader from '../components/ScreenHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
   TextInput,
   Modal,
 } from 'react-native';
-import { CheckCircle, Circle, Plus, X, Send } from 'lucide-react-native';
-import { useTheme } from '../contexts/ThemeContext';
-import { useRouter } from 'expo-router';
+import { CheckCircle, Circle, Plus, X } from 'lucide-react-native';
+import { useTheme, fonts } from '../contexts/ThemeContext';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
-import { loadTodayChecklist, saveTodayChecklist, DailyChecklist, ChecklistItem } from '../services/trackingService';
+import {
+  loadChecklistForDate,
+  getTodayDateString,
+  saveTodayChecklist,
+  ChecklistItem,
+} from '../services/trackingService';
 
 export default function ChecklistScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const router = useRouter();
+  const params = useLocalSearchParams<{ date?: string }>();
+  const requestedDate = typeof params.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.date) && params.date <= getTodayDateString() ? params.date : getTodayDateString();
+  const [error, setError] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [customTitle, setCustomTitle] = useState('');
   const [reflection, setReflection] = useState('');
 
   const [checklistDate, setChecklistDate] = useState<string>('');
   const [prayers, setPrayers] = useState<ChecklistItem[]>([]);
-  const [quranTracking, setQuranTracking] = useState({ read: false, listened: false, minutes: 0 });
+  const [quranTracking, setQuranTracking] = useState({
+    read: false,
+    listened: false,
+    minutes: 0,
+  });
   const [dhikr, setDhikr] = useState<ChecklistItem[]>([]);
   const [customPractices, setCustomPractices] = useState<ChecklistItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  React.useEffect(() => {
-    loadTodayChecklist().then((data) => {
+  const load = React.useCallback(() => {
+    setIsLoading(true); setError('');
+    loadChecklistForDate(requestedDate).then((data) => {
       setChecklistDate(data.date);
       setPrayers(data.prayers);
       setQuranTracking(data.quranTracking);
       setDhikr(data.dhikr);
       setCustomPractices(data.customPractices);
       setReflection(data.reflection || '');
-      setIsLoading(false);
-    });
-  }, []);
+    }).catch(() => setError('Your practice could not be loaded. Existing records have been kept.')).finally(() => setIsLoading(false));
+  }, [requestedDate]);
+  React.useEffect(load, [load]);
 
   const togglePrayer = (id: string) => {
-    setPrayers(prayers.map(p => p.id === id ? { ...p, completed: !p.completed } : p));
+    setPrayers(
+      prayers.map((p) => (p.id === id ? { ...p, completed: !p.completed } : p)),
+    );
   };
 
   const toggleDhikr = (id: string) => {
-    setDhikr(dhikr.map(d => d.id === id ? { ...d, completed: !d.completed } : d));
+    setDhikr(
+      dhikr.map((d) => (d.id === id ? { ...d, completed: !d.completed } : d)),
+    );
   };
 
   const toggleCustom = (id: string) => {
-    setCustomPractices(customPractices.map(c => c.id === id ? { ...c, completed: !c.completed } : c));
+    setCustomPractices(
+      customPractices.map((c) =>
+        c.id === id ? { ...c, completed: !c.completed } : c,
+      ),
+    );
   };
 
   const addCustomPractice = () => {
@@ -67,12 +94,12 @@ export default function ChecklistScreen() {
   };
 
   const removeCustomPractice = (id: string) => {
-    setCustomPractices(customPractices.filter(c => c.id !== id));
+    setCustomPractices(customPractices.filter((c) => c.id !== id));
   };
 
   const handleSubmit = async () => {
-    setIsLoading(true);
-    await saveTodayChecklist({
+    setIsLoading(true); setError('');
+    try { await saveTodayChecklist({
       date: checklistDate,
       prayers,
       quranTracking,
@@ -81,115 +108,214 @@ export default function ChecklistScreen() {
       reflection,
     });
     router.back();
+    } catch { setError('Your practice could not be saved. Please try again.'); }
+    finally { setIsLoading(false); }
   };
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            justifyContent: 'center',
+            alignItems: 'center',
+          },
+        ]}
+      >
         <Text style={{ color: colors.textPrimary }}>Loading Checklist...</Text>
       </View>
     );
   }
 
-  const completedPrayers = prayers.filter(p => !p.isCustom && p.completed).length;
+  const completedPrayers = prayers.filter(
+    (p) => !p.isCustom && p.completed,
+  ).length;
   const totalProgress = (completedPrayers / 5) * 100;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingBottom: insets.bottom },
+      ]}
+    >
+      <AppBackdrop />
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <X size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Evening Checklist</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </Text>
-        </View>
-        <TouchableOpacity onPress={handleSubmit}>
-          <Send size={24} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Daily checklist"
+        subtitle={new Date(requestedDate + 'T12:00:00').toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+        })}
+      />
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      {!!error && <View style={{ padding: 16 }}><Text accessibilityRole="alert" style={{ color: colors.danger }}>{error}</Text>{!checklistDate && <TouchableOpacity accessibilityRole="button" onPress={load} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.primary }}>Retry loading practice</Text></TouchableOpacity>}</View>}
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+      >
         {/* Progress Overview */}
-        <View style={[styles.progressCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Text style={[styles.progressTitle, { color: colors.textPrimary }]}>Today's Progress</Text>
+        <View
+          style={[
+            styles.progressCard,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.progressTitle, { color: colors.textPrimary }]}>
+            Today&apos;s Progress
+          </Text>
           <View style={styles.progressInfo}>
-            <Text style={[styles.progressText, { color: colors.primary }]}>{completedPrayers}/5 Prayers</Text>
-            <Text style={[styles.progressPercentage, { color: colors.textSecondary }]}>{Math.round(totalProgress)}%</Text>
-          </View>
-          <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-            <View 
+            <Text style={[styles.progressText, { color: colors.primary }]}>
+              {completedPrayers}/5 Prayers
+            </Text>
+            <Text
               style={[
-                styles.progressFill, 
-                { 
+                styles.progressPercentage,
+                { color: colors.textSecondary },
+              ]}
+            >
+              {Math.round(totalProgress)}%
+            </Text>
+          </View>
+          <View
+            style={[styles.progressBar, { backgroundColor: colors.border }]}
+          >
+            <View
+              style={[
+                styles.progressFill,
+                {
                   width: `${Math.round(totalProgress)}%` as any,
-                  backgroundColor: colors.primary 
-                }
-              ]} 
+                  backgroundColor: colors.primary,
+                },
+              ]}
             />
           </View>
         </View>
 
         {/* Prayers Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Prayers (Salah)</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            Prayers (Salah)
+          </Text>
           {prayers.map((prayer) => (
             <TouchableOpacity
               key={prayer.id}
-              style={[styles.checklistItem, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-              onPress={() => togglePrayer(prayer.id)}>
+              style={[
+                styles.checklistItem,
+                {
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.border,
+                },
+              ]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: prayer.completed }}
+              aria-checked={prayer.completed}
+              onPress={() => togglePrayer(prayer.id)}
+            >
               {prayer.completed ? (
-                <CheckCircle size={24} color={colors.primary} fill={colors.primary} />
+                <CheckCircle size={24} color={colors.primary} fill="none" />
               ) : (
                 <Circle size={24} color={colors.textSecondary} />
               )}
-              <Text style={[styles.itemText, { color: colors.textPrimary }]}>{prayer.title}</Text>
+              <Text style={[styles.itemText, { color: colors.textPrimary }]}>
+                {prayer.title}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Quran Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Quran Interaction</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            Quran Interaction
+          </Text>
           <TouchableOpacity
-            style={[styles.checklistItem, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-            onPress={() => setQuranTracking({ ...quranTracking, read: !quranTracking.read })}>
+            style={[
+              styles.checklistItem,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.border,
+              },
+            ]}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: quranTracking.read }}
+            aria-checked={quranTracking.read}
+            onPress={() =>
+              setQuranTracking({ ...quranTracking, read: !quranTracking.read })
+            }
+          >
             {quranTracking.read ? (
-              <CheckCircle size={24} color={colors.primary} fill={colors.primary} />
+              <CheckCircle size={24} color={colors.primary} fill="none" />
             ) : (
               <Circle size={24} color={colors.textSecondary} />
             )}
-            <Text style={[styles.itemText, { color: colors.textPrimary }]}>Read Quran</Text>
+            <Text style={[styles.itemText, { color: colors.textPrimary }]}>
+              Read Quran
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.checklistItem, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-            onPress={() => setQuranTracking({ ...quranTracking, listened: !quranTracking.listened })}>
+            style={[
+              styles.checklistItem,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.border,
+              },
+            ]}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: quranTracking.listened }}
+            aria-checked={quranTracking.listened}
+            onPress={() =>
+              setQuranTracking({
+                ...quranTracking,
+                listened: !quranTracking.listened,
+              })
+            }
+          >
             {quranTracking.listened ? (
-              <CheckCircle size={24} color={colors.primary} fill={colors.primary} />
+              <CheckCircle size={24} color={colors.primary} fill="none" />
             ) : (
               <Circle size={24} color={colors.textSecondary} />
             )}
-            <Text style={[styles.itemText, { color: colors.textPrimary }]}>Listened to Quran</Text>
+            <Text style={[styles.itemText, { color: colors.textPrimary }]}>
+              Listened to Quran
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Dhikr Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Dhikr & Du'a</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            Dhikr & Du&apos;a
+          </Text>
           {dhikr.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={[styles.checklistItem, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-              onPress={() => toggleDhikr(item.id)}>
+              style={[
+                styles.checklistItem,
+                {
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.border,
+                },
+              ]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: item.completed }}
+              aria-checked={item.completed}
+              onPress={() => toggleDhikr(item.id)}
+            >
               {item.completed ? (
-                <CheckCircle size={24} color={colors.primary} fill={colors.primary} />
+                <CheckCircle size={24} color={colors.primary} fill="none" />
               ) : (
                 <Circle size={24} color={colors.textSecondary} />
               )}
-              <Text style={[styles.itemText, { color: colors.textPrimary }]}>{item.title}</Text>
+              <Text style={[styles.itemText, { color: colors.textPrimary }]}>
+                {item.title}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -197,29 +323,50 @@ export default function ChecklistScreen() {
         {/* Custom Practices */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Custom Practices</Text>
-            <TouchableOpacity 
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              Custom Practices
+            </Text>
+            <TouchableOpacity
               style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={() => setModalVisible(true)}>
-              <Plus size={20} color="#ffffff" />
+              accessibilityRole="button"
+              accessibilityLabel="Add custom practice"
+              onPress={() => setModalVisible(true)}
+            >
+              <Plus size={20} color={colors.onPrimary} />
             </TouchableOpacity>
           </View>
           {customPractices.map((item) => (
             <View key={item.id} style={styles.customItemContainer}>
               <TouchableOpacity
-                style={[styles.checklistItem, { backgroundColor: colors.cardBackground, borderColor: colors.border, flex: 1 }]}
-                onPress={() => toggleCustom(item.id)}>
+                style={[
+                  styles.checklistItem,
+                  {
+                    backgroundColor: colors.cardBackground,
+                    borderColor: colors.border,
+                    flex: 1,
+                  },
+                ]}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: item.completed }}
+                aria-checked={item.completed}
+                onPress={() => toggleCustom(item.id)}
+              >
                 {item.completed ? (
-                  <CheckCircle size={24} color={colors.primary} fill={colors.primary} />
+                  <CheckCircle size={24} color={colors.primary} fill="none" />
                 ) : (
                   <Circle size={24} color={colors.textSecondary} />
                 )}
-                <Text style={[styles.itemText, { color: colors.textPrimary }]}>{item.title}</Text>
+                <Text style={[styles.itemText, { color: colors.textPrimary }]}>
+                  {item.title}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.deleteButton}
-                onPress={() => removeCustomPractice(item.id)}>
-                <X size={20} color="#ef4444" />
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${item.title}`}
+                onPress={() => removeCustomPractice(item.id)}
+              >
+                <X size={20} color={colors.danger} />
               </TouchableOpacity>
             </View>
           ))}
@@ -232,9 +379,18 @@ export default function ChecklistScreen() {
 
         {/* Reflection */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Evening Reflection (Optional)</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+            Evening Reflection (Optional)
+          </Text>
           <TextInput
-            style={[styles.reflectionInput, { backgroundColor: colors.cardBackground, color: colors.textPrimary, borderColor: colors.border }]}
+            style={[
+              styles.reflectionInput,
+              {
+                backgroundColor: colors.cardBackground,
+                color: colors.textPrimary,
+                borderColor: colors.border,
+              },
+            ]}
             placeholder="How was your spiritual day? Any challenges?"
             placeholderTextColor={colors.textSecondary}
             value={reflection}
@@ -246,39 +402,83 @@ export default function ChecklistScreen() {
         </View>
 
         {/* Submit Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
+          accessibilityRole="button"
           style={[styles.submitButton, { backgroundColor: colors.primary }]}
-          onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Complete Checklist</Text>
+          onPress={handleSubmit}
+          disabled={!checklistDate}
+        >
+          <Text style={[styles.submitButtonText, { color: colors.onPrimary }]}>
+            {requestedDate === getTodayDateString() ? "Save today's practice" : 'Save practice for ' + requestedDate}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
       {/* Add Custom Practice Modal */}
       <Modal
         visible={modalVisible}
-        animationType="fade"
+        animationType={reduceMotion ? 'none' : 'fade'}
         transparent={true}
-        onRequestClose={() => setModalVisible(false)}>
+        onRequestClose={() => setModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Add Custom Practice</Text>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.cardBackground },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+              Add Custom Practice
+            </Text>
             <TextInput
-              style={[styles.modalInput, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]}
+              style={[
+                styles.modalInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.textPrimary,
+                  borderColor: colors.border,
+                },
+              ]}
               placeholder="e.g., Tahajjud, Ishraq, Extra Dhikr..."
               placeholderTextColor={colors.textSecondary}
               value={customTitle}
               onChangeText={setCustomTitle}
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={[styles.modalButton, { backgroundColor: colors.background, borderColor: colors.border }]}
-                onPress={() => setModalVisible(false)}>
-                <Text style={[styles.modalButtonText, { color: colors.textSecondary }]}>Cancel</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={[
+                  styles.modalButton,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Cancel
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, { backgroundColor: colors.primary }]}
-                onPress={addCustomPractice}>
-                <Text style={[styles.modalButtonText, { color: '#ffffff' }]}>Add</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={[
+                  styles.modalButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={addCustomPractice}
+              >
+                <Text
+                  style={[styles.modalButtonText, { color: colors.onPrimary }]}
+                >
+                  Add
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -317,6 +517,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
     padding: 20,
     paddingBottom: 40,
   },
@@ -327,6 +530,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   progressTitle: {
+    fontFamily: fonts.display,
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
@@ -363,6 +567,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
+    fontFamily: fonts.display,
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
@@ -371,12 +576,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     marginBottom: 8,
     gap: 12,
   },
   itemText: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '500',
   },
@@ -393,7 +599,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   deleteButton: {
-    width: 40,
+    width: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -404,15 +610,16 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   reflectionInput: {
+    fontFamily: fonts.body,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    fontSize: 15,
+    fontSize: 17,
     minHeight: 100,
   },
   submitButton: {
     paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: 26,
     alignItems: 'center',
     marginTop: 8,
   },
@@ -429,6 +636,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
+    maxWidth: 600,
     width: '100%',
     padding: 24,
     borderRadius: 16,

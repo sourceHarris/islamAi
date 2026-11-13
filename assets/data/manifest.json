@@ -1,0 +1,25 @@
+{
+  "retrievedAt": "2026-11-13T09:45:31.824Z",
+  "quran": {
+    "surahs": 114,
+    "verses": 6236,
+    "editions": [
+      "quran-uthmani",
+      "ur.jalandhry",
+      "en.sahih"
+    ],
+    "sources": [
+      "https://api.alquran.cloud/v1/quran/quran-uthmani",
+      "https://api.alquran.cloud/v1/quran/ur.jalandhry",
+      "https://api.alquran.cloud/v1/quran/en.sahih"
+    ]
+  },
+  "hadith": {
+    "collections": 10,
+    "source": "https://github.com/fawazahmed0/hadith-api"
+  },
+  "sha256": {
+    "quran.json": "b5f12f67dd7de31d45a76d3c04e156b943633c2fb10fcd7d371bf0a3ec6bdf60",
+    "hadith-catalogue.json": "78506db063bb1a0ec9c8ba3f60f6c31157ecfc944f49cc70311f46df77614a9a"
+  }
+}

@@ -1,12 +1,19 @@
 {
   "name": "hidayah-app",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "expo start",
     "build:web": "expo export --platform web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit --incremental false",
+    "verify:stitch": "node scripts/verify-stitch-redesign.cjs",
+    "dev:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1",
+    "verify:library": "node scripts/check-library.cjs",
+    "verify:tracking": "node scripts/check-tracking.cjs",
+    "verify:features": "node scripts/verify-features.cjs",
+    "verify:auth": "node scripts/verify-auth-v2.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -15,6 +22,7 @@
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "expo": "^54.0.12",
+    "expo-audio": "~1.0.13",
     "expo-blur": "~15.0.7",
     "expo-camera": "~17.0.8",
     "expo-constants": "~18.0.9",
@@ -50,6 +58,8 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
   }
 }

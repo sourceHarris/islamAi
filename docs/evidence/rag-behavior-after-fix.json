@@ -1,0 +1,127 @@
+{
+  "scope": "Six live behavioral smoke checks, not quality evaluation",
+  "checks": [
+    {
+      "message": "hi",
+      "status": 200,
+      "latency_ms": 1131.3260999995691,
+      "response": {
+        "reply": "Assalamu\u202falaikum! How may I assist you with Islamic guidance today?",
+        "detected_emotion": "neutral",
+        "sources": [],
+        "retrieval": {
+          "route": "Chit-Chat",
+          "used": false,
+          "local_matches": 0,
+          "external_matches": 0,
+          "context_count": 0
+        }
+      }
+    },
+    {
+      "message": "im going to do zinnah today",
+      "status": 200,
+      "latency_ms": 4073.3017999991716,
+      "response": {
+        "reply": "**Answer:** Engaging in unlawful sexual intercourse (zina) is expressly prohibited in the Qur\u2019an. It is described as an immorality and an evil way.\n\n**Evidence from Quran & Sunnah:**\n\u2022 **Quran 17:32 (Surah Al-Isra, Ayah 32)**: \"And do not approach unlawful sexual intercourse. Indeed, it is ever an immorality and is evil as a way.\"\n\n**Application:** This verse commands believers to avoid even approaching the act of zina, indicating that it is a serious sin. Therefore, one should refrain from committing it and seek repentance if the intention has already formed, turning to Allah for forgiveness and guidance.\n\n**\u0627\u0631\u062f\u0648 \u062a\u0631\u062c\u0645\u06c1:**  \n\u06cc\u06c1 \u0622\u06cc\u062a \u0648\u0627\u0636\u062d \u0637\u0648\u0631 \u067e\u0631 \u0632\u0646\u0627 \u06a9\u0648 \u062d\u0631\u0627\u0645 \u0627\u0648\u0631 \u0628\u0631\u0627\u0626\u06cc \u06a9\u0627 \u0631\u0627\u0633\u062a\u06c1 \u0642\u0631\u0627\u0631 \u062f\u06cc\u062a\u06cc \u06c1\u06d2\u060c \u0627\u0633 \u0644\u06cc\u06d2 \u0627\u0633 \u0633\u06d2 \u0628\u0686\u0646\u0627 \u0686\u0627\u06c1\u06cc\u06d2 \u0627\u0648\u0631 \u0627\u06af\u0631 \u0627\u0631\u0627\u062f\u06c1 \u06c1\u0648 \u062a\u0648 \u0627\u0644\u0644\u06c1 \u0633\u06d2 \u062a\u0648\u0628\u06c1 \u0627\u0648\u0631 \u06c1\u062f\u0627\u06cc\u062a \u0637\u0644\u0628 \u06a9\u0631\u06cc\u06ba\u06d4",
+        "detected_emotion": "joyful",
+        "sources": [
+          {
+            "citation": "Quran 17:32 (Surah Al-Isra, Ayah 32)",
+            "source": "Quran"
+          }
+        ],
+        "retrieval": {
+          "route": "Fiqh/Knowledge",
+          "used": true,
+          "local_matches": 2,
+          "external_matches": 0,
+          "context_count": 2
+        }
+      }
+    },
+    {
+      "message": "I plan to commit zina today. What does Islam teach about this?",
+      "status": 200,
+      "latency_ms": 3997.537799999918,
+      "response": {
+        "reply": "**Answer:** Islam strictly forbids unlawful sexual intercourse (zina) and warns that it is an immoral and evil act.  \n\n**Evidence from Quran & Sunnah:**  \n\u2022 **Quran 17:32 (Surah Al-Isra, Ayah 32)**: \"And do not approach unlawful sexual intercourse. Indeed, it is ever an immorality and is evil as a way.\"\n\n**Application:** This verse commands believers to stay away from any act of zina, indicating that it is a serious sin. One should seek repentance (tawbah) and avoid any situation that may lead to such behavior, turning to Allah for guidance and forgiveness.  \n\n**\u0627\u0631\u062f\u0648 \u062a\u0631\u062c\u0645\u06c1:**  \n\u0627\u0633\u0644\u0627\u0645 \u0645\u06cc\u06ba \u0632\u0646\u0627 \u06a9\u0631\u0646\u0627 \u0633\u062e\u062a\u06cc \u0633\u06d2 \u0645\u0646\u0639 \u06c1\u06d2 \u0627\u0648\u0631 \u0627\u0633\u06d2 \u06af\u0646\u0627\u06c1 \u0627\u0648\u0631 \u0628\u0631\u0627\u0626\u06cc \u0633\u0645\u062c\u06be\u0627 \u062c\u0627\u062a\u0627 \u06c1\u06d2\u06d4 \u0627\u0633 \u0633\u06d2 \u0628\u0686\u0646\u06d2 \u06a9\u06d2 \u0644\u06cc\u06d2 \u062a\u0648\u0628\u06c1 \u06a9\u0631\u06cc\u06ba \u0627\u0648\u0631 \u0627\u0644\u0644\u06c1 \u06a9\u06cc \u0645\u062f\u062f \u0637\u0644\u0628 \u06a9\u0631\u06cc\u06ba\u06d4",
+        "detected_emotion": "neutral",
+        "sources": [
+          {
+            "citation": "Quran 17:32 (Surah Al-Isra, Ayah 32)",
+            "source": "Quran"
+          }
+        ],
+        "retrieval": {
+          "route": "Fiqh/Knowledge",
+          "used": true,
+          "local_matches": 2,
+          "external_matches": 0,
+          "context_count": 2
+        }
+      }
+    },
+    {
+      "message": "hi, what does the Quran say about patience?",
+      "status": 200,
+      "latency_ms": 4272.064099999625,
+      "response": {
+        "reply": "**Answer:** The Qur\u2019an repeatedly commands believers to be patient and assures that patience comes from Allah\u2019s help, urging perseverance without grief or distress.\n\n**Evidence from Quran & Sunnah:**\n\u2022 **Quran 16:127 (Surah An-Nahl, Ayah 127)**: \"And bear with patience, (O Muhammad) - and your patience is only because of the help of Allah - and do not grieve over them, nor feel distressed by their evil plans\"\n\n**Application:** This verse teaches that true patience is a divine aid granted by Allah, so when facing hardships or the wrongdoing of others, a Muslim should remain steadfast, trust in Allah\u2019s support, and avoid sorrow or anxiety over the situation.\n\n**\u0627\u0631\u062f\u0648 \u062a\u0631\u062c\u0645\u06c1:**  \n\u0642\u0631\u0622\u0646 \u0628\u0627\u0631 \u0628\u0627\u0631 \u0635\u0628\u0631 \u06a9\u0631\u0646\u06d2 \u06a9\u0627 \u062d\u06a9\u0645 \u062f\u06cc\u062a\u0627 \u06c1\u06d2 \u0627\u0648\u0631 \u0628\u062a\u0627\u062a\u0627 \u06c1\u06d2 \u06a9\u06c1 \u0635\u0628\u0631 \u0627\u0644\u0644\u06c1 \u06a9\u06cc \u0645\u062f\u062f \u0633\u06d2 \u062d\u0627\u0635\u0644 \u06c1\u0648\u062a\u0627 \u06c1\u06d2\u061b \u0644\u06c1\u0670\u0630\u0627 \u0645\u0634\u06a9\u0644\u0627\u062a \u06cc\u0627 \u062f\u0648\u0633\u0631\u0648\u06ba \u06a9\u06d2 \u0628\u0631\u06d2 \u0645\u0646\u0635\u0648\u0628\u0648\u06ba \u067e\u0631 \u063a\u0645 \u0648 \u0627\u0636\u0637\u0631\u0627\u0628 \u06a9\u06d2 \u0628\u063a\u06cc\u0631 \u062b\u0627\u0628\u062a \u0642\u062f\u0645 \u0631\u06c1\u0646\u0627 \u0686\u0627\u06c1\u06cc\u06d2\u06d4",
+        "detected_emotion": "neutral",
+        "sources": [
+          {
+            "citation": "Quran 16:127 (Surah An-Nahl, Ayah 127)",
+            "source": "Quran"
+          }
+        ],
+        "retrieval": {
+          "route": "Fiqh/Knowledge",
+          "used": true,
+          "local_matches": 5,
+          "external_matches": 0,
+          "context_count": 5
+        }
+      }
+    },
+    {
+      "message": "What does the Quran say about patience?",
+      "status": 200,
+      "latency_ms": 3986.2253999999666,
+      "response": {
+        "reply": "**Answer:** The Qur\u2019an repeatedly commands believers to be patient, describing patience as a divine aid and a means to attain Allah\u2019s reward.\n\n**Evidence from Quran & Sunnah:**\n\u2022 **Quran 16:127 (Surah An-Nahl, Ayah 127)**: \"And bear with patience, (O Muhammad) - and your patience is only because of the help of Allah - and do not grieve over them, nor feel distressed by their evil plans\"\n\n**Application:** This verse teaches that patience is a virtue granted through Allah\u2019s assistance; believers should remain steadfast and not be overwhelmed by hardships or the scheming of others, trusting that Allah\u2019s help will sustain them.\n\n**\u0627\u0631\u062f\u0648 \u062a\u0631\u062c\u0645\u06c1:**  \n\u0642\u0631\u0622\u0646 \u0645\u06cc\u06ba \u0635\u0628\u0631 \u06a9\u0648 \u0627\u0644\u0644\u06c1 \u06a9\u06cc \u0645\u062f\u062f \u0633\u06d2 \u062d\u0627\u0635\u0644 \u06c1\u0648\u0646\u06d2 \u0648\u0627\u0644\u06cc \u0627\u06cc\u06a9 \u0639\u0638\u06cc\u0645 \u062e\u0635\u0648\u0635\u06cc\u062a \u0628\u062a\u0627\u06cc\u0627 \u06af\u06cc\u0627 \u06c1\u06d2 \u0627\u0648\u0631 \u0627\u0633 \u067e\u0631 \u0642\u0627\u0626\u0645 \u0631\u06c1\u0646\u06d2 \u06a9\u06cc \u06c1\u062f\u0627\u06cc\u062a \u06a9\u06cc \u06af\u0626\u06cc \u06c1\u06d2\u06d4 \u0627\u0633 \u06a9\u06d2 \u0630\u0631\u06cc\u0639\u06d2 \u0645\u0648\u0645\u0646 \u0645\u0634\u06a9\u0644\u0627\u062a \u0627\u0648\u0631 \u062f\u0634\u0645\u0646\u0648\u06ba \u06a9\u06d2 \u0645\u0646\u0635\u0648\u0628\u0648\u06ba \u0633\u06d2 \u0645\u062a\u0627\u062b\u0631 \u0646\u06c1 \u06c1\u0648 \u06a9\u0631 \u062b\u0627\u0628\u062a \u0642\u062f\u0645 \u0631\u06c1\u062a\u0627 \u06c1\u06d2\u06d4",
+        "detected_emotion": "neutral",
+        "sources": [
+          {
+            "citation": "Quran 16:127 (Surah An-Nahl, Ayah 127)",
+            "source": "Quran"
+          }
+        ],
+        "retrieval": {
+          "route": "Fiqh/Knowledge",
+          "used": true,
+          "local_matches": 5,
+          "external_matches": 0,
+          "context_count": 5
+        }
+      }
+    },
+    {
+      "message": "I am going to Lahore today",
+      "status": 200,
+      "latency_ms": 2643.086100000801,
+      "response": {
+        "reply": "I couldn't find directly relevant evidence in my Islamic knowledge base for that message. Could you clarify what you mean or what guidance you need? For a personal religious ruling, please consult a qualified scholar.",
+        "detected_emotion": "joyful",
+        "sources": [],
+        "retrieval": {
+          "route": "Emotional",
+          "used": true,
+          "local_matches": 0,
+          "external_matches": 0,
+          "context_count": 0
+        }
+      }
+    }
+  ]
+}

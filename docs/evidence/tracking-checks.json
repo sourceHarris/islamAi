@@ -1,0 +1,13 @@
+{
+  "testedAt": "2026-11-13T10:03:29.192Z",
+  "results": [
+    "Saving retains earlier records",
+    "Weekly insights use the last seven calendar days",
+    "Editing a selected historical day loads that date",
+    "A missing historical date starts with empty practice",
+    "Prayer/Quran streaks read existing saved records",
+    "Read failures cannot overwrite existing history",
+    "Write failures reach the UI instead of reporting success",
+    "Invalid saved JSON is retained and reported"
+  ]
+}

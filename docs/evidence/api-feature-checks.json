@@ -1,0 +1,29 @@
+[
+  {
+    "endpoint": "/",
+    "status": 200,
+    "cors": "http://localhost:8081"
+  },
+  {
+    "endpoint": "/login",
+    "status": 401
+  },
+  {
+    "endpoint": "/register",
+    "status": 422
+  },
+  {
+    "endpoint": "/chat",
+    "status": 200,
+    "cors": "http://localhost:8081",
+    "reply_present": true,
+    "sources_present": true,
+    "reply": "**Answer:** The Qur’an repeatedly commands believers to be patient, describing patience as a divine aid and a means to attain great reward. It urges perseverance with graciousness and assures that patience comes through Allah’s help.\n\n**Evidence from Quran & Sunnah:**\n• **Quran 16:127 (Surah An-Nahl, Ayah 127)**: \"And bear with patience, (O Muhammad) - and your patience is only because of the help of Allah - and do not grieve over them, nor feel distressed by their evil plans\"\n\n**Application:** This verse teaches that patience is a command for all believers, especially when facing opposition or hardship. It reminds us that true patience relies on Allah’s assistance, so we should trust in Him and avoid despair or distress when difficulties arise.\n\n**اردو ترجمہ:**  \nقرآن میں صبر کو اللہ کی مدد سے حاصل ہونے والی ایک عظیم نعمت قرار دیا گیا ہے اور اس پر قائم رہنے کی ہدایت کی گئی ہے۔ صبر کے ذریعے ہم مشکلات میں بھی اللہ پر بھروسہ رکھ کر غم و غصے سے بچ سکتے ہیں۔",
+    "sources": [
+      {
+        "citation": "Quran 16:127 (Surah An-Nahl, Ayah 127)",
+        "source": "Quran"
+      }
+    ]
+  }
+]
